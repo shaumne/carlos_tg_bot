@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
  WAITING_FOR_TRADE_AMOUNT, WAITING_FOR_SETTING_VALUE) = range(4)
 
 class TelegramTradingBot:
-    """Ana Telegram Trading Bot sınıfı"""
+    """Main Telegram Trading Bot class"""
     
     def __init__(self, config_manager: ConfigManager, database_manager: DatabaseManager):
         self.config = config_manager
@@ -59,7 +59,7 @@ class TelegramTradingBot:
         logger.info("Telegram Trading Bot initialized")
     
     async def initialize(self):
-        """Bot bileşenlerini başlat"""
+        """Initialize bot components"""
         try:
             # Initialize dynamic settings manager
             self.dynamic_settings = DynamicSettingsManager(self.config, self.db)
@@ -99,7 +99,7 @@ class TelegramTradingBot:
             return False
     
     async def _setup_handlers(self):
-        """Komut ve callback handler'larını ayarla"""
+        """Setup command and callback handlers"""
         
         # Command handlers
         self.application.add_handler(CommandHandler("start", self._cmd_start))
@@ -136,7 +136,7 @@ class TelegramTradingBot:
         logger.info("✅ All handlers setup complete")
     
     async def _setup_bot_commands(self):
-        """Bot komutları menüsünü ayarla"""
+        """Setup bot commands menu"""
         commands = [
             BotCommand("start", "Start bot and welcome message"),
             BotCommand("help", "Help and command list"),
@@ -157,12 +157,12 @@ class TelegramTradingBot:
         logger.info("✅ Bot commands menu setup complete")
     
     def _check_authorization(self, user_id: int) -> bool:
-        """Kullanıcı yetki kontrolü"""
+        """User authorization check"""
         try:
-            # Database'den kontrol et
+            # Check from database
             is_authorized = self.db.is_user_authorized(user_id)
             
-            # Config'den de kontrol et
+            # Also check from config
             config_authorized = (
                 user_id in self.telegram_config.authorized_users or
                 user_id in self.telegram_config.admin_users
@@ -175,7 +175,7 @@ class TelegramTradingBot:
             return False
     
     def _is_admin(self, user_id: int) -> bool:
-        """Admin kontrolü"""
+        """Admin check"""
         return user_id in self.telegram_config.admin_users
     
     async def _send_unauthorized_message(self, update: Update):
@@ -194,7 +194,7 @@ class TelegramTradingBot:
         user = update.effective_user
         user_id = user.id
         
-        # Kullanıcıyı database'e ekle
+        # Add user to database
         self.db.add_user(
             telegram_id=user_id,
             username=user.username,
@@ -747,8 +747,8 @@ Will appear here after trading.
                     InlineKeyboardButton("📊 Details", callback_data="detailed_history")
                 ],
                 [
-                    InlineKeyboardButton("💰 Portföy", callback_data="portfolio"),
-                    InlineKeyboardButton("📈 Sinyaller", callback_data="signals")
+                    InlineKeyboardButton("💰 Portfolio", callback_data="portfolio"),
+                    InlineKeyboardButton("📈 Signals", callback_data="signals")
                 ]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
@@ -777,7 +777,7 @@ Will appear here after trading.
         except Exception as e:
             logger.error(f"Error in settings command: {str(e)}")
             await update.message.reply_text(
-                f"❌ Ayarlar alınırken hata oluştu:\n{str(e)}"
+                f"❌ Error getting settings:\n{str(e)}"
             )
     
     async def _cmd_add_coin(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -796,7 +796,7 @@ Will appear here after trading.
                 "➕ **Add Coin**\n\n"
                 "Enter the coin symbol you want to add to watchlist:\n"
                 "Example: `BTC`, `ETH`, `SUI`\n\n"
-                "To cancel type `/cancel` type.",
+                "To cancel type `/cancel`.",
                 parse_mode=ParseMode.MARKDOWN
             )
             
@@ -868,8 +868,8 @@ Will appear here after trading.
             if not watched_coins:
                 await update.message.reply_text(
                     "📭 No coins found to analyze.\n\n"
-                    "First `/add_coin` add coins with or\n"
-                    "`/analyze BTC` format.",
+                                         "First add coins with `/add_coin` or\n"
+                     "use `/analyze BTC` format.",
                     parse_mode=ParseMode.MARKDOWN
                 )
                 return
@@ -956,9 +956,9 @@ Will appear here after trading.
             health_text = f"""
 🏥 **System Health Report**
 
-{status_emoji} **Genel Durum: {overall_status}**
+  {status_emoji} **Overall Status: {overall_status}**
 
-**📋 Detaylar:**
+**📋 Details:**
 {chr(10).join(['• ' + status for status in health_status])}
 
 **⏰ Check Time:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
@@ -1159,8 +1159,10 @@ Will appear here after trading.
             await self._analyze_symbol(query, symbol)
         elif data == "cancel":
             await query.edit_message_text("❌ Operation cancelled.")
+        elif data == "main_menu":
+            await self._handle_main_menu_callback(query)
         else:
-            await query.edit_message_text(f"⚠️ Bilinmeyen komut: {data}")
+            await query.edit_message_text(f"⚠️ Unknown command: {data}")
     
     # ============ MESSAGE HANDLERS ============
     
@@ -1253,8 +1255,8 @@ Will appear here after trading.
             if active_positions:
                 await self._send_response(
                     update_or_query,
-                    f"❌ {symbol} has active position!\n"
-                    f"First pozisyonu kapatın."
+                                         f"❌ {symbol} has active position!\n"
+                     f"Close position first."
                 )
                 return
             
@@ -1342,29 +1344,38 @@ Will appear here after trading.
     async def _send_response(self, update_or_query, text: str, reply_markup=None):
         """Send response utility (handles both Update and CallbackQuery)"""
         try:
-            if hasattr(update_or_query, 'callback_query'):
+            if hasattr(update_or_query, 'edit_message_text'):
                 # It's a CallbackQuery
                 await update_or_query.edit_message_text(
                     text, 
                     parse_mode=ParseMode.MARKDOWN, 
                     reply_markup=reply_markup
                 )
-            elif hasattr(update_or_query, 'message'):
-                # It's an Update
+            elif hasattr(update_or_query, 'message') and update_or_query.message:
+                # It's an Update with message
                 await update_or_query.message.reply_text(
                     text, 
                     parse_mode=ParseMode.MARKDOWN, 
                     reply_markup=reply_markup
                 )
-            else:
-                # It's a CallbackQuery directly
-                await update_or_query.edit_message_text(
-                    text, 
-                    parse_mode=ParseMode.MARKDOWN, 
+            elif hasattr(update_or_query, 'effective_chat'):
+                # It's an Update but message might be None, use bot directly
+                await self.application.bot.send_message(
+                    chat_id=update_or_query.effective_chat.id,
+                    text=text,
+                    parse_mode=ParseMode.MARKDOWN,
                     reply_markup=reply_markup
                 )
+            else:
+                logger.error(f"Unknown update_or_query type: {type(update_or_query)}")
         except Exception as e:
             logger.error(f"Error sending response: {str(e)}")
+            # Fallback - try with callback query answer
+            if hasattr(update_or_query, 'answer'):
+                try:
+                    await update_or_query.answer(text[:200])  # Callback answers are limited
+                except:
+                    pass
     
     # ============ CALLBACK UTILITIES ============
     
@@ -1456,6 +1467,17 @@ Will appear here after trading.
         
         mock_update = MockUpdate(query)
         await self._cmd_help(mock_update, None)
+    
+    async def _handle_main_menu_callback(self, query):
+        """Handle main menu callback"""
+        class MockUpdate:
+            def __init__(self, query):
+                self.effective_user = query.from_user
+                self.message = query.message
+                self.callback_query = query
+        
+        mock_update = MockUpdate(query)
+        await self._cmd_start(mock_update, None)
     
     # ============ ERROR HANDLER ============
     
