@@ -3,7 +3,7 @@
 
 """
 Telegram Bot Settings Handlers
-Kullanıcıların bot üzerinden ayarları değiştirmesini sağlayan handler'lar
+Handlers that allow users to change settings through the bot
 """
 
 import logging
@@ -29,7 +29,7 @@ class SettingsHandlers:
         logger.info("Settings handlers initialized")
     
     async def handle_settings_main(self, update_or_query, context=None):
-        """Ana settings menüsü"""
+        """Main settings menu"""
         try:
             settings_text = """
 ⚙️ **Bot Settings**
@@ -70,7 +70,7 @@ Select a category below to view and modify settings:
             
         except Exception as e:
             logger.error(f"Error in settings main: {str(e)}")
-            await self._send_error_message(update_or_query, "Ayarlar menüsü yüklenirken hata oluştu.")
+            await self._send_error_message(update_or_query, "Error loading settings menu.")
     
     async def handle_settings_category(self, update_or_query, category: str):
         """Belirli bir kategori ayarlarını göster"""
@@ -155,7 +155,7 @@ Select a category below to view and modify settings:
             
         except Exception as e:
             logger.error(f"Error showing category {category}: {str(e)}")
-            await self._send_error_message(update_or_query, f"'{category}' ayarları yüklenirken hata oluştu.")
+            await self._send_error_message(update_or_query, f"'{category}' error loading settings.")
     
     async def handle_setting_edit(self, update_or_query, category: str, key: str):
         """Belirli bir ayarı düzenle"""
@@ -163,7 +163,7 @@ Select a category below to view and modify settings:
             category_settings = self.settings_manager.get_category_settings(category)
             
             if key not in category_settings:
-                await self._send_error_message(update_or_query, f"Ayar bulunamadı: {category}.{key}")
+                await self._send_error_message(update_or_query, f"Setting not found: {category}.{key}")
                 return
             
             setting_info = category_settings[key]
@@ -185,15 +185,15 @@ Select a category below to view and modify settings:
                 
                 if success:
                     status = "✅ Aktif" if new_value else "❌ Pasif"
-                    message = f"✅ **{description}** güncellendi!\n\nYeni değer: {status}"
+                    message = f"✅ **{description}** updated!\n\nNew value: {status}"
                     
                     if restart_required:
-                        message += "\n\n🔄 **Uyarı:** Bu değişiklik için bot yeniden başlatılmalı!"
+                        message += "\n\n🔄 **Uyarı:** Bot must be restarted for this change!"
                 else:
-                    message = f"❌ **{description}** güncellenemedi!"
+                    message = f"❌ **{description}** could not be updated!"
                 
                 keyboard = [
-                    [InlineKeyboardButton("⬅️ Geri", callback_data=f"settings_category_{category}")]
+                    [InlineKeyboardButton("⬅️ Back", callback_data=f"settings_category_{category}")]
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 
@@ -210,16 +210,16 @@ Select a category below to view and modify settings:
                     range_info = f"(max: {max_val})"
                 
                 message = f"""
-✏️ **{description}** Düzenle
+✏️ **{description}** Edit
 
-**Mevcut değer:** `{current_value}`
+**Current value:** `{current_value}`
 **Tip:** {setting_type} {range_info}
 
-Yeni değeri yazın veya iptal etmek için "iptal" yazın.
+Enter new value or type 'cancel' to cancel.
                 """
                 
                 keyboard = [
-                    [InlineKeyboardButton("❌ İptal", callback_data=f"settings_category_{category}")]
+                    [InlineKeyboardButton("❌ Cancel", callback_data=f"settings_category_{category}")]
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 
@@ -236,7 +236,7 @@ Yeni değeri yazın veya iptal etmek için "iptal" yazın.
                 
         except Exception as e:
             logger.error(f"Error editing setting {category}.{key}: {str(e)}")
-            await self._send_error_message(update_or_query, "Ayar düzenlenirken hata oluştu.")
+            await self._send_error_message(update_or_query, "Error editing setting.")
     
     async def handle_setting_value_input(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Kullanıcının girdiği setting değerini işle"""
@@ -260,9 +260,9 @@ Yeni değeri yazın veya iptal etmek için "iptal" yazın.
             if text.lower() in ['iptal', 'cancel']:
                 del self.user_sessions[user_id]
                 await update.message.reply_text(
-                    "❌ İşlem iptal edildi.",
+                    "❌ Operation cancelled.",
                     reply_markup=InlineKeyboardMarkup([
-                        [InlineKeyboardButton("⬅️ Ayarlara Dön", callback_data=f"settings_category_{category}")]
+                        [InlineKeyboardButton("⬅️ Back to Settings", callback_data=f"settings_category_{category}")]
                     ])
                 )
                 return
@@ -280,8 +280,8 @@ Yeni değeri yazın veya iptal etmek için "iptal" yazın.
                 
             except ValueError:
                 await update.message.reply_text(
-                    f"❌ Geçersiz değer! {setting_type} tipinde bir değer girin.\n\n"
-                    f"Tekrar deneyin veya iptal etmek için 'iptal' yazın."
+                    f"❌ Invalid value! {setting_type} type a value.\n\n"
+                    f"Try again or type 'cancel' to cancel."
                 )
                 return
             
@@ -292,15 +292,15 @@ Yeni değeri yazın veya iptal etmek için "iptal" yazın.
             if setting_type in ['int', 'float']:
                 if min_val is not None and new_value < min_val:
                     await update.message.reply_text(
-                        f"❌ Değer çok küçük! Minimum: {min_val}\n\n"
-                        f"Tekrar deneyin veya iptal etmek için 'iptal' yazın."
+                        f"❌ Value too small! Minimum: {min_val}\n\n"
+                        f"Try again or type 'cancel' to cancel."
                     )
                     return
                 
                 if max_val is not None and new_value > max_val:
                     await update.message.reply_text(
-                        f"❌ Değer çok büyük! Maksimum: {max_val}\n\n"
-                        f"Tekrar deneyin veya iptal etmek için 'iptal' yazın."
+                        f"❌ Value too large! Maximum: {max_val}\n\n"
+                        f"Try again or type 'cancel' to cancel."
                     )
                     return
             
@@ -311,14 +311,14 @@ Yeni değeri yazın veya iptal etmek için "iptal" yazın.
                 description = setting_info['description']
                 restart_required = setting_info.get('restart_required', False)
                 
-                message = f"✅ **{description}** güncellendi!\n\n"
-                message += f"Yeni değer: `{new_value}`"
+                message = f"✅ **{description}** updated!\n\n"
+                message += f"New value: `{new_value}`"
                 
                 if restart_required:
-                    message += "\n\n🔄 **Uyarı:** Bu değişiklik için bot yeniden başlatılmalı!"
+                    message += "\n\n🔄 **Uyarı:** Bot must be restarted for this change!"
                 
                 keyboard = [
-                    [InlineKeyboardButton("⬅️ Ayarlara Dön", callback_data=f"settings_category_{category}")]
+                    [InlineKeyboardButton("⬅️ Back to Settings", callback_data=f"settings_category_{category}")]
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 
@@ -330,9 +330,9 @@ Yeni değeri yazın veya iptal etmek için "iptal" yazın.
                     logger.info(f"Applied runtime setting change: {category}.{key} = {new_value}")
             else:
                 await update.message.reply_text(
-                    f"❌ Ayar kaydedilemedi! Lütfen tekrar deneyin.",
+                    f"❌ Could not save setting! Please try again.",
                     reply_markup=InlineKeyboardMarkup([
-                        [InlineKeyboardButton("⬅️ Ayarlara Dön", callback_data=f"settings_category_{category}")]
+                        [InlineKeyboardButton("⬅️ Back to Settings", callback_data=f"settings_category_{category}")]
                     ])
                 )
             
@@ -341,7 +341,7 @@ Yeni değeri yazın veya iptal etmek için "iptal" yazın.
             
         except Exception as e:
             logger.error(f"Error handling setting value input: {str(e)}")
-            await update.message.reply_text("❌ Beklenmedik bir hata oluştu!")
+            await update.message.reply_text("❌ An unexpected error occurred!")
     
     async def handle_settings_export(self, update_or_query):
         """Ayarları export et"""
@@ -349,7 +349,7 @@ Yeni değeri yazın veya iptal etmek için "iptal" yazın.
             exported_settings = self.settings_manager.export_settings()
             
             if not exported_settings:
-                message = "📁 **Export Sonucu**\n\nHerhangi bir özel ayar bulunamadı (tüm ayarlar varsayılan değerlerde)."
+                message = "📁 **Export Result**\n\nNo custom settings found (all settings at default values)."
             else:
                 import json
                 settings_json = json.dumps(exported_settings, indent=2, ensure_ascii=False)
@@ -361,12 +361,12 @@ Yeni değeri yazın veya iptal etmek için "iptal" yazın.
 {settings_json}
 ```
 
-Bu JSON'ı kopyalayıp saklayabilirsiniz.
-Import etmek için `/settings` → Import kullanın.
+You can copy and save this JSON.
+To import use `/settings` → Import.
                 """
             
             keyboard = [
-                [InlineKeyboardButton("⬅️ Ayarlara Dön", callback_data="settings_main")]
+                [InlineKeyboardButton("⬅️ Back to Settings", callback_data="settings_main")]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
@@ -374,7 +374,7 @@ Import etmek için `/settings` → Import kullanın.
             
         except Exception as e:
             logger.error(f"Error exporting settings: {str(e)}")
-            await self._send_error_message(update_or_query, "Ayarlar export edilirken hata oluştu.")
+            await self._send_error_message(update_or_query, "Error exporting settings.")
     
     async def handle_settings_status(self, update_or_query):
         """Ayar durumu raporu"""
@@ -396,19 +396,19 @@ Import etmek için `/settings` → Import kullanın.
                         if self.settings_manager.db.get_setting(db_key) is not None:
                             runtime_count += 1
             
-            message += f"🔄 **Runtime Ayarlar:** {runtime_count} (anında uygulanır)\n"
-            message += f"⚠️ **Restart Gereken:** {restart_count} (yeniden başlatma gerekir)\n\n"
+            message += f"🔄 **Runtime Settings:** {runtime_count} (applied immediately)\n"
+            message += f"⚠️ **Restart Required:** {restart_count} (restart required)\n\n"
             
             if restart_required:
                 message += "🔄 **Restart Gereken Ayarlar:**\n"
                 for setting in restart_required:
                     message += f"• `{setting}`\n"
-                message += "\n⚠️ Bu ayarların etkili olması için bot yeniden başlatılmalı!"
+                message += "\n⚠️ Bot must be restarted for these settings to take effect!"
             else:
-                message += "✅ Tüm ayar değişiklikleri aktif!"
+                message += "✅ All setting changes are active!"
             
             keyboard = [
-                [InlineKeyboardButton("⬅️ Ayarlara Dön", callback_data="settings_main")]
+                [InlineKeyboardButton("⬅️ Back to Settings", callback_data="settings_main")]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
@@ -416,7 +416,7 @@ Import etmek için `/settings` → Import kullanın.
             
         except Exception as e:
             logger.error(f"Error showing settings status: {str(e)}")
-            await self._send_error_message(update_or_query, "Ayar durumu gösterilirken hata oluştu.")
+            await self._send_error_message(update_or_query, "Error showing setting status.")
     
     async def handle_reset_category(self, update_or_query, category: str):
         """Kategori ayarlarını sıfırla"""
@@ -425,7 +425,7 @@ Import etmek için `/settings` → Import kullanın.
             category_settings = self.settings_manager.get_category_settings(category)
             
             if not category_settings:
-                await self._send_error_message(update_or_query, f"Kategori bulunamadı: {category}")
+                await self._send_error_message(update_or_query, f"Category not found: {category}")
                 return
             
             reset_count = 0
@@ -443,12 +443,12 @@ Import etmek için `/settings` → Import kullanın.
             
             category_title = category_titles.get(category, category.title())
             
-            message = f"✅ **{category_title} Ayarları Sıfırlandı**\n\n"
-            message += f"{reset_count} ayar varsayılan değerlere döndürüldü."
+            message = f"✅ **{category_title} Settings Reset**\n\n"
+            message += f"{reset_count} settings returned to default values."
             
             keyboard = [
-                [InlineKeyboardButton("📊 Güncel Ayarları Gör", callback_data=f"settings_category_{category}")],
-                [InlineKeyboardButton("⬅️ Ana Ayarlar", callback_data="settings_main")]
+                [InlineKeyboardButton("📊 View Current Settings", callback_data=f"settings_category_{category}")],
+                [InlineKeyboardButton("⬅️ Main Settings", callback_data="settings_main")]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
@@ -459,7 +459,7 @@ Import etmek için `/settings` → Import kullanın.
             
         except Exception as e:
             logger.error(f"Error resetting category {category}: {str(e)}")
-            await self._send_error_message(update_or_query, f"'{category}' sıfırlanırken hata oluştu.")
+            await self._send_error_message(update_or_query, f"'{category}' error occurred while resetting.")
     
     # Utility methods
     def _get_user_id(self, update_or_query) -> int:
@@ -494,7 +494,7 @@ Import etmek için `/settings` → Import kullanın.
     async def _send_error_message(self, update_or_query, error_text: str):
         """Send error message utility"""
         keyboard = [
-            [InlineKeyboardButton("⬅️ Ayarlara Dön", callback_data="settings_main")]
+            [InlineKeyboardButton("⬅️ Back to Settings", callback_data="settings_main")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         

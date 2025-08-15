@@ -14,8 +14,8 @@ logger = logging.getLogger(__name__)
 
 class DatabaseManager:
     """
-    Telegram Trading Bot için SQLite veritabanı yöneticisi
-    Thread-safe operasyonlar ve connection pooling
+    SQLite database manager for Telegram Trading Bot
+    Thread-safe operations and connection pooling
     """
     
     def __init__(self, db_path: str = "data/trading_bot.db"):
@@ -23,10 +23,10 @@ class DatabaseManager:
         self.schema_path = "database/schema.sql"
         self._local = threading.local()
         
-        # Veritabanı dizini oluştur
+        # Create database directory
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         
-        # Veritabanını başlat
+        # Initialize database
         self.initialize_database()
         
         logger.info(f"Database manager initialized: {self.db_path}")

@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class TelegramConfig:
-    """Telegram bot konfigürasyonu"""
+    """Telegram bot configuration"""
     bot_token: str
     chat_id: str
     authorized_users: List[int]
@@ -33,7 +33,7 @@ class TelegramConfig:
 
 @dataclass
 class ExchangeConfig:
-    """Kripto borsa API konfigürasyonu"""
+    """Crypto exchange API configuration"""
     api_key: str
     api_secret: str
     base_url: str = "https://api.crypto.com/exchange/v1/"
@@ -53,7 +53,7 @@ class TradingConfig:
     """Trading parametreleri"""
     trade_amount: float = 10.0  # USDT cinsinden
     max_positions: int = 5
-    risk_per_trade: float = 2.0  # Yüzde
+    risk_per_trade: float = 2.0  # Percentage
     enable_auto_trading: bool = False
     enable_paper_trading: bool = False
     min_balance_required: float = 15.0  # USDT
@@ -67,8 +67,8 @@ class TradingConfig:
     ma_period: int = 20
     ema_period: int = 12
     
-    # Risk yönetimi
-    max_drawdown: float = 10.0  # Yüzde
+    # Risk management
+    max_drawdown: float = 10.0  # Percentage
     stop_loss_percentage: float = 5.0
     take_profit_percentage: float = 10.0
     trailing_stop_enabled: bool = True
@@ -76,7 +76,7 @@ class TradingConfig:
 
 @dataclass
 class MonitoringConfig:
-    """İzleme ve bildirim ayarları"""
+    """Monitoring and notification settings"""
     signal_check_interval: int = 30  # saniye
     position_check_interval: int = 60  # saniye
     price_update_interval: int = 10  # saniye
@@ -88,7 +88,7 @@ class MonitoringConfig:
     notify_errors: bool = True
     notify_system_events: bool = True
     
-    # Log ayarları
+    # Log settings
     log_level: str = "INFO"
     log_file: str = "logs/trading_bot.log"
     log_max_size: int = 10 * 1024 * 1024  # 10MB
@@ -100,7 +100,7 @@ class MonitoringConfig:
 
 @dataclass
 class DatabaseConfig:
-    """Veritabanı konfigürasyonu"""
+    """Database configuration"""
     db_path: str = "data/trading_bot.db"
     backup_enabled: bool = True
     backup_interval: int = 3600  # saniye (1 saat)
@@ -109,12 +109,12 @@ class DatabaseConfig:
     connection_timeout: int = 30
     
     def __post_init__(self):
-        # Database dizini oluştur
+        # Create database directory
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
 
 @dataclass
 class SecurityConfig:
-    """Güvenlik ayarları"""
+    """Security settings"""
     encryption_key: Optional[str] = None
     session_timeout: int = 3600  # saniye
     max_failed_attempts: int = 5
@@ -124,8 +124,8 @@ class SecurityConfig:
 
 class ConfigManager:
     """
-    Merkezi konfigürasyon yöneticisi
-    Environment variables, config files ve database ayarlarını yönetir
+    Central configuration manager
+    Manages environment variables, config files and database settings
     """
     
     def __init__(self, config_file: str = "config/config.json"):
@@ -146,7 +146,7 @@ class ConfigManager:
         logger.info("Configuration manager initialized successfully")
     
     def load_config(self):
-        """Konfigürasyon dosyasını yükle"""
+        """Load configuration file"""
         try:
             if os.path.exists(self.config_file):
                 with open(self.config_file, 'r', encoding='utf-8') as f:
@@ -160,9 +160,9 @@ class ConfigManager:
             self._config_data = {}
     
     def save_config(self):
-        """Konfigürasyonu dosyaya kaydet"""
+        """Save configuration to file"""
         try:
-            # Config dizini oluştur
+            # Create config directory
             os.makedirs(os.path.dirname(self.config_file), exist_ok=True)
             
             # Create config data from current settings
@@ -193,14 +193,14 @@ class ConfigManager:
             return False
     
     def _create_telegram_config(self) -> TelegramConfig:
-        """Telegram konfigürasyonunu oluştur"""
+        """Create telegram configuration"""
         config_section = self._config_data.get('telegram', {})
         
-        # Environment variables'ı öncelikle kullan
+        # Use environment variables first
         bot_token = os.getenv('TELEGRAM_BOT_TOKEN', config_section.get('bot_token', ''))
         chat_id = os.getenv('TELEGRAM_CHAT_ID', config_section.get('chat_id', ''))
         
-        # Authorized users - env var'dan JSON string olarak alınabilir
+        # Authorized users - can be taken as JSON string from env var
         authorized_users_env = os.getenv('TELEGRAM_AUTHORIZED_USERS', '')
         if authorized_users_env:
             try:
@@ -246,7 +246,7 @@ class ConfigManager:
         )
     
     def _create_exchange_config(self) -> ExchangeConfig:
-        """Exchange konfigürasyonunu oluştur"""
+        """Create exchange configuration"""
         config_section = self._config_data.get('exchange', {})
         
         return ExchangeConfig(
@@ -260,7 +260,7 @@ class ConfigManager:
         )
     
     def _create_trading_config(self) -> TradingConfig:
-        """Trading konfigürasyonunu oluştur"""
+        """Create trading configuration"""
         config_section = self._config_data.get('trading', {})
         
         return TradingConfig(
@@ -280,7 +280,7 @@ class ConfigManager:
             ma_period=int(os.getenv('MA_PERIOD', config_section.get('ma_period', 20))),
             ema_period=int(os.getenv('EMA_PERIOD', config_section.get('ema_period', 12))),
             
-            # Risk yönetimi
+            # Risk management
             max_drawdown=float(os.getenv('MAX_DRAWDOWN', config_section.get('max_drawdown', 10.0))),
             stop_loss_percentage=float(os.getenv('STOP_LOSS_PERCENTAGE', config_section.get('stop_loss_percentage', 5.0))),
             take_profit_percentage=float(os.getenv('TAKE_PROFIT_PERCENTAGE', config_section.get('take_profit_percentage', 10.0))),
@@ -289,7 +289,7 @@ class ConfigManager:
         )
     
     def _create_monitoring_config(self) -> MonitoringConfig:
-        """Monitoring konfigürasyonunu oluştur"""
+        """Create monitoring configuration"""
         config_section = self._config_data.get('monitoring', {})
         
         return MonitoringConfig(
@@ -316,7 +316,7 @@ class ConfigManager:
         )
     
     def _create_database_config(self) -> DatabaseConfig:
-        """Database konfigürasyonunu oluştur"""
+        """Create database configuration"""
         config_section = self._config_data.get('database', {})
         
         return DatabaseConfig(
@@ -329,7 +329,7 @@ class ConfigManager:
         )
     
     def _create_security_config(self) -> SecurityConfig:
-        """Security konfigürasyonunu oluştur"""
+        """Create security configuration"""
         config_section = self._config_data.get('security', {})
         
         return SecurityConfig(
@@ -342,7 +342,7 @@ class ConfigManager:
         )
     
     def update_setting(self, section: str, key: str, value: Any) -> bool:
-        """Dinamik ayar güncelleme"""
+        """Dynamic setting update"""
         try:
             if hasattr(self, section):
                 config_obj = getattr(self, section)
@@ -361,7 +361,7 @@ class ConfigManager:
             return False
     
     def get_setting(self, section: str, key: str, default_value: Any = None) -> Any:
-        """Ayar değeri getir"""
+        """Get setting value"""
         try:
             if hasattr(self, section):
                 config_obj = getattr(self, section)
@@ -376,7 +376,7 @@ class ConfigManager:
             return default_value
     
     def validate_config(self) -> tuple[bool, List[str]]:
-        """Konfigürasyon doğrulaması"""
+        """Configuration validation"""
         errors = []
         
         try:
@@ -422,7 +422,7 @@ class ConfigManager:
             return False, errors
     
     def get_config_summary(self) -> Dict[str, Any]:
-        """Konfigürasyon özeti (hassas bilgiler gizlenir)"""
+        """Configuration summary (sensitive info hidden)"""
         return {
             'telegram': {
                 'chat_id': self.telegram.chat_id,
@@ -474,7 +474,7 @@ def get_config() -> ConfigManager:
     return _config_instance
 
 def reload_config():
-    """Config'i yeniden yükle"""
+    """Reload config"""
     global _config_instance
     _config_instance = ConfigManager()
     return _config_instance

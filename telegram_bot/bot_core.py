@@ -138,19 +138,19 @@ class TelegramTradingBot:
     async def _setup_bot_commands(self):
         """Bot komutları menüsünü ayarla"""
         commands = [
-            BotCommand("start", "Bot'u başlat ve hoş geldin mesajı"),
-            BotCommand("help", "Yardım ve komut listesi"),
-            BotCommand("status", "Bot durumu ve sistem bilgileri"),
-            BotCommand("portfolio", "Aktif pozisyonlar ve portföy"),
-            BotCommand("balance", "Exchange bakiye bilgileri"),
-            BotCommand("watchlist", "Takip edilen coinler"),
-            BotCommand("signals", "Son trading sinyalleri"),
-            BotCommand("history", "İşlem geçmişi"),
-            BotCommand("settings", "Bot ayarları"),
-            BotCommand("add_coin", "Coin takip listesine ekle"),
-            BotCommand("remove_coin", "Coin takip listesinden çıkar"),
-            BotCommand("analyze", "Belirli bir coin'i analiz et"),
-            BotCommand("health", "Sistem sağlık kontrolü"),
+            BotCommand("start", "Start bot and welcome message"),
+            BotCommand("help", "Help and command list"),
+            BotCommand("status", "Bot status and system information"),
+            BotCommand("portfolio", "Active positions and portfolio"),
+            BotCommand("balance", "Exchange balance information"),
+            BotCommand("watchlist", "Tracked coins"),
+            BotCommand("signals", "Recent trading signals"),
+            BotCommand("history", "Trade history"),
+            BotCommand("settings", "Bot settings"),
+            BotCommand("add_coin", "Add coin to watchlist"),
+            BotCommand("remove_coin", "Remove coin from watchlist"),
+            BotCommand("analyze", "Analyze specific coin"),
+            BotCommand("health", "System health check"),
         ]
         
         await self.application.bot.set_my_commands(commands)
@@ -190,7 +190,7 @@ class TelegramTradingBot:
     # ============ COMMAND HANDLERS ============
     
     async def _cmd_start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Start komutu"""
+        """Start command"""
         user = update.effective_user
         user_id = user.id
         
@@ -261,7 +261,7 @@ Use any command to get started! 🎯
                          {"user": user.to_dict()}, user_id)
     
     async def _cmd_help(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Help komutu"""
+        """Help command"""
         if not self._check_authorization(update.effective_user.id):
             await self._send_unauthorized_message(update)
             return
@@ -306,7 +306,7 @@ This bot trades with real money. Always be careful!
         await update.message.reply_text(help_text, parse_mode=ParseMode.MARKDOWN)
     
     async def _cmd_status(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Status komutu"""
+        """Status command"""
         if not self._check_authorization(update.effective_user.id):
             await self._send_unauthorized_message(update)
             return
@@ -384,7 +384,7 @@ This bot trades with real money. Always be careful!
             )
     
     async def _cmd_portfolio(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Portfolio komutu"""
+        """Portfolio command"""
         if not self._check_authorization(update.effective_user.id):
             await self._send_unauthorized_message(update)
             return
@@ -395,17 +395,17 @@ This bot trades with real money. Always be careful!
             
             if not active_positions:
                 portfolio_text = """
-💰 **Portföy Raporu**
+💰 **Portfolio Report**
 
-📭 **Aktif pozisyon bulunmuyor.**
+📭 **No active positions found.**
 
-Pozisyon açmak için:
-• `/watchlist` ile takip edilen coinleri görebilirsiniz
-• `/signals` ile trading sinyallerini kontrol edebilirsiniz
-• `/add_coin [SYMBOL]` ile yeni coin ekleyebilirsiniz
+To open positions:
+• `/watchlist` to view tracked coins
+• `/signals` to check trading signals
+• `/add_coin [SYMBOL]` to add new coins
                 """
             else:
-                portfolio_text = "💰 **Portföy Raporu**\n\n"
+                portfolio_text = "💰 **Portfolio Report**\n\n"
                 total_pnl = 0
                 
                 for pos in active_positions:
@@ -425,9 +425,9 @@ Pozisyon açmak için:
                             
                             portfolio_text += f"""
 {status_emoji} **{symbol}**
-• Giriş: ${entry_price:.6f}
-• Güncel: ${current_price:.6f}
-• Miktar: {quantity:.6f}
+• Entry: ${entry_price:.6f}
+• Current: ${current_price:.6f}
+• Quantity: {quantity:.6f}
 • P&L: ${pnl:.2f} ({pnl_pct:+.2f}%)
 • TP: ${pos.get('take_profit', 0):.6f}
 • SL: ${pos.get('stop_loss', 0):.6f}
@@ -436,26 +436,26 @@ Pozisyon açmak için:
                         else:
                             portfolio_text += f"""
 ⚪ **{symbol}**
-• Giriş: ${entry_price:.6f}
-• Miktar: {quantity:.6f}
-• Fiyat alınamadı
+• Entry: ${entry_price:.6f}
+• Quantity: {quantity:.6f}
+• Price unavailable
 
                             """
                     except Exception as e:
                         logger.error(f"Error getting price for {symbol}: {str(e)}")
                 
                 total_emoji = "🟢" if total_pnl > 0 else "🔴" if total_pnl < 0 else "⚪"
-                portfolio_text += f"\n{total_emoji} **Toplam P&L: ${total_pnl:.2f}**"
+                portfolio_text += f"\n{total_emoji} **Total P&L: ${total_pnl:.2f}**"
             
             # Portfolio actions
             keyboard = [
                 [
-                    InlineKeyboardButton("🔄 Yenile", callback_data="portfolio"),
-                    InlineKeyboardButton("💳 Bakiye", callback_data="balance")
+                    InlineKeyboardButton("🔄 Refresh", callback_data="portfolio"),
+                    InlineKeyboardButton("💳 Balance", callback_data="balance")
                 ],
                 [
-                    InlineKeyboardButton("📊 Sinyaller", callback_data="signals"),
-                    InlineKeyboardButton("📜 Geçmiş", callback_data="history")
+                    InlineKeyboardButton("📊 Signals", callback_data="signals"),
+                    InlineKeyboardButton("📜 History", callback_data="history")
                 ]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
@@ -469,11 +469,11 @@ Pozisyon açmak için:
         except Exception as e:
             logger.error(f"Error in portfolio command: {str(e)}")
             await update.message.reply_text(
-                f"❌ Portföy bilgisi alınırken hata oluştu:\n{str(e)}"
+                f"❌ Error getting portfolio information:\n{str(e)}"
             )
     
     async def _cmd_balance(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Balance komutu"""
+        """Balance command"""
         if not self._check_authorization(update.effective_user.id):
             await self._send_unauthorized_message(update)
             return
@@ -484,53 +484,53 @@ Pozisyon açmak için:
             
             if not balances:
                 balance_text = """
-💳 **Bakiye Raporu**
+💳 **Balance Report**
 
-❌ **Bakiye bilgisi alınamadı**
+❌ **Could not retrieve balance information**
 
-Olası nedenler:
-• Exchange API bağlantı sorunu
-• API anahtarları hatalı
-• Yetki problemi
+Possible reasons:
+• Exchange API connection issue
+• Incorrect API keys
+• Authorization problem
                 """
             else:
-                balance_text = "💳 **Bakiye Raporu**\n\n"
+                balance_text = "💳 **Balance Report**\n\n"
                 
                 # Significant balances first
                 significant_balances = [b for b in balances if b.available > 0.01]
                 other_balances = [b for b in balances if b.available <= 0.01 and b.available > 0]
                 
                 if significant_balances:
-                    balance_text += "**💰 Ana Bakiyeler:**\n"
+                    balance_text += "**💰 Main Balances:**\n"
                     for balance in significant_balances:
-                        locked_info = f" (Kilitli: {balance.locked:.6f})" if balance.locked > 0 else ""
+                        locked_info = f" (Locked: {balance.locked:.6f})" if balance.locked > 0 else ""
                         balance_text += f"• **{balance.currency}**: {balance.available:.6f}{locked_info}\n"
                 
                 if other_balances:
-                    balance_text += f"\n**🪙 Diğer ({len(other_balances)} coin):**\n"
+                    balance_text += f"\n**🪙 Others ({len(other_balances)} coins):**\n"
                     for balance in other_balances[:10]:  # Show only first 10
                         balance_text += f"• {balance.currency}: {balance.available:.6f}\n"
                     
                     if len(other_balances) > 10:
-                        balance_text += f"• ... ve {len(other_balances) - 10} coin daha\n"
+                        balance_text += f"• ... and {len(other_balances) - 10} more coins\n"
                 
                 # Trading status
                 usdt_balance = next((b.available for b in balances if b.currency == "USDT"), 0)
                 min_required = self.config.trading.min_balance_required
                 
                 if usdt_balance >= min_required:
-                    balance_text += f"\n✅ **Trading için yeterli bakiye** (Min: {min_required} USDT)"
+                    balance_text += f"\n✅ **Sufficient balance for trading** (Min: {min_required} USDT)"
                 else:
-                    balance_text += f"\n⚠️ **Yetersiz USDT bakiyesi** (Min: {min_required} USDT)"
+                    balance_text += f"\n⚠️ **Insufficient USDT balance** (Min: {min_required} USDT)"
             
             # Balance actions
             keyboard = [
                 [
-                    InlineKeyboardButton("🔄 Yenile", callback_data="balance"),
-                    InlineKeyboardButton("💰 Portföy", callback_data="portfolio")
+                    InlineKeyboardButton("🔄 Refresh", callback_data="balance"),
+                    InlineKeyboardButton("💰 Portfolio", callback_data="portfolio")
                 ],
                 [
-                    InlineKeyboardButton("📊 Durum", callback_data="status")
+                    InlineKeyboardButton("📊 Status", callback_data="status")
                 ]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
@@ -544,11 +544,11 @@ Olası nedenler:
         except Exception as e:
             logger.error(f"Error in balance command: {str(e)}")
             await update.message.reply_text(
-                f"❌ Bakiye bilgisi alınırken hata oluştu:\n{str(e)}"
+                f"❌ Error getting balance information:\n{str(e)}"
             )
     
     async def _cmd_watchlist(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Watchlist komutu"""
+        """Watchlist command"""
         if not self._check_authorization(update.effective_user.id):
             await self._send_unauthorized_message(update)
             return
@@ -558,16 +558,16 @@ Olası nedenler:
             
             if not watched_coins:
                 watchlist_text = """
-📋 **Takip Listesi**
+📋 **Watchlist**
 
-📭 **Hiç coin takip edilmiyor.**
+📭 **No coins being tracked.**
 
-Coin eklemek için:
-• `/add_coin BTC` (komut ile)
-• Aşağıdaki "Coin Ekle" butonunu kullanın
+To add coins:
+• `/add_coin BTC` (via command)
+• Use "Add Coin" button below
                 """
             else:
-                watchlist_text = f"📋 **Takip Listesi** ({len(watched_coins)} coin)\n\n"
+                watchlist_text = f"📋 **Watchlist** ({len(watched_coins)} coins)\n\n"
                 
                 for coin in watched_coins:
                     symbol = coin['symbol']
@@ -577,27 +577,27 @@ Coin eklemek için:
                     # Get current price
                     try:
                         current_price = self.exchange_api.get_current_price(formatted_symbol)
-                        price_info = f"${current_price:.6f}" if current_price else "Fiyat alınamadı"
+                        price_info = f"${current_price:.6f}" if current_price else "Price unavailable"
                     except:
-                        price_info = "Fiyat alınamadı"
+                        price_info = "Price unavailable"
                     
                     # Check if we have active position
                     active_pos = self.db.get_active_positions(symbol)
-                    position_info = "📈 Aktif pozisyon" if active_pos else ""
+                    position_info = "📈 Active position" if active_pos else ""
                     
                     watchlist_text += f"• **{symbol}** ({formatted_symbol})\n"
                     watchlist_text += f"  💰 {price_info} {position_info}\n"
-                    watchlist_text += f"  📅 Eklendi: {added_date[:10]}\n\n"
+                    watchlist_text += f"  📅 Added: {added_date[:10]}\n\n"
             
             # Watchlist actions
             keyboard = [
                 [
-                    InlineKeyboardButton("➕ Coin Ekle", callback_data="add_coin"),
-                    InlineKeyboardButton("➖ Coin Çıkar", callback_data="remove_coin")
+                    InlineKeyboardButton("➕ Add Coin", callback_data="add_coin"),
+                    InlineKeyboardButton("➖ Remove Coin", callback_data="remove_coin")
                 ],
                 [
-                    InlineKeyboardButton("🔄 Yenile", callback_data="watchlist"),
-                    InlineKeyboardButton("📊 Analiz Et", callback_data="analyze")
+                    InlineKeyboardButton("🔄 Refresh", callback_data="watchlist"),
+                    InlineKeyboardButton("📊 Analyze", callback_data="analyze")
                 ]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
@@ -611,11 +611,11 @@ Coin eklemek için:
         except Exception as e:
             logger.error(f"Error in watchlist command: {str(e)}")
             await update.message.reply_text(
-                f"❌ Takip listesi alınırken hata oluştu:\n{str(e)}"
+                f"❌ Error getting watchlist:\n{str(e)}"
             )
     
     async def _cmd_signals(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Signals komutu"""
+        """Signals command"""
         if not self._check_authorization(update.effective_user.id):
             await self._send_unauthorized_message(update)
             return
@@ -625,17 +625,17 @@ Coin eklemek için:
             
             if not recent_signals:
                 signals_text = """
-📊 **Trading Sinyalleri**
+📊 **Trading Signals**
 
-📭 **Henüz sinyal üretilmemiş.**
+📭 **No signals generated yet.**
 
-Sinyal üretmek için:
-• Takip listesine coin ekleyin (`/add_coin`)
-• Sistem otomatik olarak analiz yapacak
-• Manual analiz: `/analyze [SYMBOL]`
+To generate signals:
+• Add coins to watchlist (`/add_coin`)
+• System will analyze automatically
+• Manual analysis: `/analyze [SYMBOL]`
                 """
             else:
-                signals_text = f"📊 **Son Trading Sinyalleri** ({len(recent_signals)})\n\n"
+                signals_text = f"📊 **Recent Trading Signals** ({len(recent_signals)})\n\n"
                 
                 for signal in recent_signals[:5]:  # Show last 5
                     symbol = signal['symbol']
@@ -657,24 +657,24 @@ Sinyal üretmek için:
                     
                     signals_text += f"""
 {emoji} **{symbol}** - {signal_type}
-• Fiyat: ${price:.6f}
-• Güven: {conf_bars} ({confidence:.0%})
-• Zaman: {timestamp[:16]}
+• Price: ${price:.6f}
+• Confidence: {conf_bars} ({confidence:.0%})
+• Time: {timestamp[:16]}
 
                     """
                 
                 if len(recent_signals) > 5:
-                    signals_text += f"... ve {len(recent_signals) - 5} sinyal daha"
+                    signals_text += f"... and {len(recent_signals) - 5} more signals"
             
             # Signals actions
             keyboard = [
                 [
-                    InlineKeyboardButton("🔄 Yenile", callback_data="signals"),
-                    InlineKeyboardButton("📈 Tüm Sinyaller", callback_data="all_signals")
+                    InlineKeyboardButton("🔄 Refresh", callback_data="signals"),
+                    InlineKeyboardButton("📈 All Signals", callback_data="all_signals")
                 ],
                 [
-                    InlineKeyboardButton("📊 Analiz Et", callback_data="analyze"),
-                    InlineKeyboardButton("💰 Portföy", callback_data="portfolio")
+                    InlineKeyboardButton("📊 Analyze", callback_data="analyze"),
+                    InlineKeyboardButton("💰 Portfolio", callback_data="portfolio")
                 ]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
@@ -688,11 +688,11 @@ Sinyal üretmek için:
         except Exception as e:
             logger.error(f"Error in signals command: {str(e)}")
             await update.message.reply_text(
-                f"❌ Sinyal bilgisi alınırken hata oluştu:\n{str(e)}"
+                f"❌ Error getting signal information:\n{str(e)}"
             )
     
     async def _cmd_history(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """History komutu"""
+        """History command"""
         if not self._check_authorization(update.effective_user.id):
             await self._send_unauthorized_message(update)
             return
@@ -702,14 +702,14 @@ Sinyal üretmek için:
             
             if not trade_history:
                 history_text = """
-📜 **İşlem Geçmişi**
+📜 **Trade History**
 
-📭 **Henüz işlem geçmişi bulunmuyor.**
+📭 **No trade history found yet.**
 
-İşlem yaptıktan sonra burada görünecek.
+Will appear here after trading.
                 """
             else:
-                history_text = f"📜 **Son İşlemler** ({len(trade_history)})\n\n"
+                history_text = f"📜 **Recent Trades** ({len(trade_history)})\n\n"
                 
                 total_pnl = 0
                 for trade in trade_history[:5]:  # Show last 5
@@ -735,7 +735,7 @@ Sinyal üretmek için:
                     """
                 
                 if len(trade_history) > 5:
-                    history_text += f"... ve {len(trade_history) - 5} işlem daha\n\n"
+                    history_text += f"... ve {len(trade_history) - 5} more trades\n\n"
                 
                 pnl_emoji = "💚" if total_pnl > 0 else "❤️" if total_pnl < 0 else "💛"
                 history_text += f"{pnl_emoji} **Toplam P&L: ${total_pnl:.2f}**"
@@ -743,8 +743,8 @@ Sinyal üretmek için:
             # History actions
             keyboard = [
                 [
-                    InlineKeyboardButton("🔄 Yenile", callback_data="history"),
-                    InlineKeyboardButton("📊 Detay", callback_data="detailed_history")
+                    InlineKeyboardButton("🔄 Refresh", callback_data="history"),
+                    InlineKeyboardButton("📊 Details", callback_data="detailed_history")
                 ],
                 [
                     InlineKeyboardButton("💰 Portföy", callback_data="portfolio"),
@@ -762,7 +762,7 @@ Sinyal üretmek için:
         except Exception as e:
             logger.error(f"Error in history command: {str(e)}")
             await update.message.reply_text(
-                f"❌ İşlem geçmişi alınırken hata oluştu:\n{str(e)}"
+                f"❌ Error getting trade history:\n{str(e)}"
             )
     
     async def _cmd_settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -793,10 +793,10 @@ Sinyal üretmek için:
         else:
             # Start conversation
             await update.message.reply_text(
-                "➕ **Coin Ekle**\n\n"
-                "Takip listesine eklemek istediğiniz coin sembolünü yazın:\n"
-                "Örnek: `BTC`, `ETH`, `SUI`\n\n"
-                "İptal etmek için `/cancel` yazın.",
+                "➕ **Add Coin**\n\n"
+                "Enter the coin symbol you want to add to watchlist:\n"
+                "Example: `BTC`, `ETH`, `SUI`\n\n"
+                "To cancel type `/cancel` type.",
                 parse_mode=ParseMode.MARKDOWN
             )
             
@@ -827,7 +827,7 @@ Sinyal üretmek için:
                 )
                 return
             
-            remove_text = "➖ **Coin Çıkar**\n\nÇıkarmak istediğiniz coin'i seçin:"
+            remove_text = "➖ **Remove Coin**\n\nSelect the coin you want to remove:"
             
             # Create keyboard with coins
             keyboard = []
@@ -840,7 +840,7 @@ Sinyal üretmek için:
                 ])
             
             keyboard.append([
-                InlineKeyboardButton("🚫 İptal", callback_data="cancel")
+                InlineKeyboardButton("🚫 Cancel", callback_data="cancel")
             ])
             
             reply_markup = InlineKeyboardMarkup(keyboard)
@@ -867,14 +867,14 @@ Sinyal üretmek için:
             
             if not watched_coins:
                 await update.message.reply_text(
-                    "📭 Analiz edilecek coin bulunamadı.\n\n"
-                    "Önce `/add_coin` ile coin ekleyin veya\n"
-                    "`/analyze BTC` formatında kullanın.",
+                    "📭 No coins found to analyze.\n\n"
+                    "First `/add_coin` add coins with or\n"
+                    "`/analyze BTC` format.",
                     parse_mode=ParseMode.MARKDOWN
                 )
                 return
             
-            analyze_text = "📊 **Analiz Et**\n\nAnaliz etmek istediğiniz coin'i seçin:"
+            analyze_text = "📊 **Analyze**\n\nSelect the coin you want to analyze:"
             
             # Create keyboard with coins
             keyboard = []
@@ -887,7 +887,7 @@ Sinyal üretmek için:
                 ])
             
             keyboard.append([
-                InlineKeyboardButton("🚫 İptal", callback_data="cancel")
+                InlineKeyboardButton("🚫 Cancel", callback_data="cancel")
             ])
             
             reply_markup = InlineKeyboardMarkup(keyboard)
@@ -911,7 +911,7 @@ Sinyal üretmek için:
             # Database health
             try:
                 self.db.get_database_stats()
-                health_status.append("✅ Database: Sağlıklı")
+                health_status.append("✅ Database: Healthy")
             except Exception as e:
                 health_status.append(f"❌ Database: {str(e)[:50]}")
                 overall_healthy = False
@@ -919,7 +919,7 @@ Sinyal üretmek için:
             # Exchange API health
             try:
                 balance = self.exchange_api.get_balance("USDT")
-                health_status.append(f"✅ Exchange API: Sağlıklı (USDT: {balance:.2f})")
+                health_status.append(f"✅ Exchange API: Healthy (USDT: {balance:.2f})")
             except Exception as e:
                 health_status.append(f"❌ Exchange API: {str(e)[:50]}")
                 overall_healthy = False
@@ -929,9 +929,9 @@ Sinyal üretmek için:
                 # Test signal generation with a simple symbol
                 test_signal = self.signal_engine.analyze_symbol("BTC_USDT")
                 if test_signal:
-                    health_status.append("✅ Signal Engine: Sağlıklı")
+                    health_status.append("✅ Signal Engine: Healthy")
                 else:
-                    health_status.append("⚠️ Signal Engine: Test sinyali üretilemedi")
+                    health_status.append("⚠️ Signal Engine: Could not generate test signal")
             except Exception as e:
                 health_status.append(f"❌ Signal Engine: {str(e)[:50]}")
                 overall_healthy = False
@@ -947,34 +947,34 @@ Sinyal üretmek için:
                 else:
                     health_status.append(f"⚠️ Sistem: CPU {cpu_percent:.1f}%, RAM {memory_percent:.1f}%")
             except:
-                health_status.append("⚠️ Sistem: Metrik alınamadı")
+                health_status.append("⚠️ Sistem: Metrics unavailable")
             
             # Overall status
             status_emoji = "🟢" if overall_healthy else "🔴"
-            overall_status = "Sağlıklı" if overall_healthy else "Problemli"
+            overall_status = "Healthy" if overall_healthy else "Problems"
             
             health_text = f"""
-🏥 **Sistem Sağlık Raporu**
+🏥 **System Health Report**
 
 {status_emoji} **Genel Durum: {overall_status}**
 
 **📋 Detaylar:**
 {chr(10).join(['• ' + status for status in health_status])}
 
-**⏰ Kontrol Zamanı:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+**⏰ Check Time:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             """
             
             # Health actions
             keyboard = [
                 [
-                    InlineKeyboardButton("🔄 Tekrar Kontrol", callback_data="health"),
-                    InlineKeyboardButton("📊 Durum", callback_data="status")
+                    InlineKeyboardButton("🔄 Check Again", callback_data="health"),
+                    InlineKeyboardButton("📊 Status", callback_data="status")
                 ]
             ]
             
             if self._is_admin(update.effective_user.id):
                 keyboard.append([
-                    InlineKeyboardButton("📋 Detaylı Log", callback_data="detailed_logs")
+                    InlineKeyboardButton("📋 Detailed Logs", callback_data="detailed_logs")
                 ])
             
             reply_markup = InlineKeyboardMarkup(keyboard)
@@ -988,7 +988,7 @@ Sinyal üretmek için:
         except Exception as e:
             logger.error(f"Error in health command: {str(e)}")
             await update.message.reply_text(
-                f"❌ Sağlık kontrolü sırasında hata oluştu:\n{str(e)}"
+                f"❌ Error during health check:\n{str(e)}"
             )
     
     # ============ ADMIN COMMANDS ============
@@ -1003,7 +1003,7 @@ Sinyal üretmek için:
         
         if not self._is_admin(user_id):
             await update.message.reply_text(
-                "❌ Bu komut sadece admin kullanıcılar için mevcut.",
+                "❌ This command is only available for admin users.",
                 parse_mode=ParseMode.MARKDOWN
             )
             return
@@ -1012,29 +1012,29 @@ Sinyal üretmek için:
 👑 **Admin Paneli**
 
 **📊 Sistem Bilgileri:**
-• Bot çalışma zamanı
-• Memory kullanımı
-• Database boyutu
-• API call sayısı
+• Bot runtime
+• Memory usage
+• Database size
+• API call count
 
-**🔧 Yönetim İşlemleri:**
-• Kullanıcı yetkilendirme
-• Sistem ayarları
-• Database bakımı
-• Log yönetimi
+**🔧 Management Operations:**
+• User authorization
+• System settings
+• Database maintenance
+• Log management
 
-**⚠️ Dikkatli kullanın!**
+**⚠️ Use carefully!**
         """
         
         # Admin actions
         keyboard = [
             [
-                InlineKeyboardButton("👥 Kullanıcılar", callback_data="admin_users"),
-                InlineKeyboardButton("📊 İstatistik", callback_data="admin_stats")
+                InlineKeyboardButton("👥 Users", callback_data="admin_users"),
+                InlineKeyboardButton("📊 Statistics", callback_data="admin_stats")
             ],
             [
-                InlineKeyboardButton("⚙️ Ayarlar", callback_data="admin_settings"),
-                InlineKeyboardButton("📋 Loglar", callback_data="admin_logs")
+                InlineKeyboardButton("⚙️ Settings", callback_data="admin_settings"),
+                InlineKeyboardButton("📋 Logs", callback_data="admin_logs")
             ],
             [
                 InlineKeyboardButton("💾 Backup", callback_data="admin_backup"),
@@ -1054,17 +1054,17 @@ Sinyal üretmek için:
         user_id = update.effective_user.id
         
         if not self._is_admin(user_id):
-            await update.message.reply_text("❌ Bu komut sadece admin kullanıcılar için mevcut.")
+            await update.message.reply_text("❌ This command is only available for admin users.")
             return
         
         try:
             recent_logs = self.db.get_recent_logs(limit=20)
             
             if not recent_logs:
-                await update.message.reply_text("📋 Log bulunamadı.")
+                await update.message.reply_text("📋 No logs found.")
                 return
             
-            logs_text = "📋 **Son Sistem Logları**\n\n"
+            logs_text = "📋 **Recent System Logs**\n\n"
             
             for log in recent_logs[:10]:
                 level_emoji = {
@@ -1087,7 +1087,7 @@ Sinyal üretmek için:
         user_id = update.effective_user.id
         
         if not self._is_admin(user_id):
-            await update.message.reply_text("❌ Bu komut sadece admin kullanıcılar için mevcut.")
+            await update.message.reply_text("❌ This command is only available for admin users.")
             return
         
         try:
@@ -1095,12 +1095,12 @@ Sinyal üretmek için:
             
             if success:
                 await update.message.reply_text(
-                    "✅ Database backup başarıyla oluşturuldu.",
+                    "✅ Database backup created successfully.",
                     parse_mode=ParseMode.MARKDOWN
                 )
             else:
                 await update.message.reply_text(
-                    "❌ Database backup oluşturulamadı.",
+                    "❌ Could not create database backup.",
                     parse_mode=ParseMode.MARKDOWN
                 )
                 
@@ -1158,7 +1158,7 @@ Sinyal üretmek için:
             symbol = data.split("_", 1)[1]
             await self._analyze_symbol(query, symbol)
         elif data == "cancel":
-            await query.edit_message_text("❌ İşlem iptal edildi.")
+            await query.edit_message_text("❌ Operation cancelled.")
         else:
             await query.edit_message_text(f"⚠️ Bilinmeyen komut: {data}")
     
@@ -1184,7 +1184,7 @@ Sinyal üretmek için:
         # Handle cancel
         if text.lower() in ['/cancel', 'cancel', 'iptal']:
             del self.user_sessions[user_id]
-            await update.message.reply_text("❌ İşlem iptal edildi.")
+            await update.message.reply_text("❌ Operation cancelled.")
             return
         
         # Handle conversation states
@@ -1200,12 +1200,12 @@ Sinyal üretmek için:
         try:
             # Validate symbol format
             if not symbol.isalpha() or len(symbol) < 2 or len(symbol) > 10:
-                await self._send_response(update_or_query, "❌ Geçersiz coin sembolü!")
+                await self._send_response(update_or_query, "❌ Invalid coin symbol!")
                 return
             
             # Check if already exists
             if self.db.is_coin_watched(symbol):
-                await self._send_response(update_or_query, f"⚠️ {symbol} zaten takip listesinde!")
+                await self._send_response(update_or_query, f"⚠️ {symbol} already in watchlist!")
                 return
             
             # Format for exchange
@@ -1215,8 +1215,8 @@ Sinyal üretmek için:
             if not self.exchange_api.validate_instrument(formatted_symbol):
                 await self._send_response(
                     update_or_query, 
-                    f"❌ {symbol} coin'i exchange'de bulunamadı!\n"
-                    f"Desteklenen coinleri kontrol edin."
+                    f"❌ {symbol} coin'i not found on exchange!\n"
+                    f"Check supported coins."
                 )
                 return
             
@@ -1226,15 +1226,15 @@ Sinyal üretmek için:
             if success:
                 await self._send_response(
                     update_or_query, 
-                    f"✅ {symbol} takip listesine eklendi!\n\n"
-                    f"🔄 Sistem otomatik olarak analiz yapacak.\n"
-                    f"📊 Manuel analiz: `/analyze {symbol}`"
+                    f"✅ {symbol} added to watchlist!\n\n"
+                    f"🔄 System will analyze automatically.\n"
+                    f"📊 Manual analysis: `/analyze {symbol}`"
                 )
                 
                 # Log activity
                 self.db.log_event("INFO", "telegram_bot", f"Coin added to watchlist: {symbol}")
             else:
-                await self._send_response(update_or_query, f"❌ {symbol} eklenirken hata oluştu!")
+                await self._send_response(update_or_query, f"❌ {symbol} error occurred while adding!")
                 
         except Exception as e:
             logger.error(f"Error adding coin {symbol}: {str(e)}")
@@ -1245,7 +1245,7 @@ Sinyal üretmek için:
         try:
             # Check if exists
             if not self.db.is_coin_watched(symbol):
-                await self._send_response(update_or_query, f"⚠️ {symbol} takip listesinde değil!")
+                await self._send_response(update_or_query, f"⚠️ {symbol} not in watchlist!")
                 return
             
             # Check for active positions
@@ -1253,8 +1253,8 @@ Sinyal üretmek için:
             if active_positions:
                 await self._send_response(
                     update_or_query,
-                    f"❌ {symbol} için aktif pozisyon var!\n"
-                    f"Önce pozisyonu kapatın."
+                    f"❌ {symbol} has active position!\n"
+                    f"First pozisyonu kapatın."
                 )
                 return
             
@@ -1264,13 +1264,13 @@ Sinyal üretmek için:
             if success:
                 await self._send_response(
                     update_or_query, 
-                    f"✅ {symbol} takip listesinden çıkarıldı!"
+                    f"✅ {symbol} removed from watchlist!"
                 )
                 
                 # Log activity
                 self.db.log_event("INFO", "telegram_bot", f"Coin removed from watchlist: {symbol}")
             else:
-                await self._send_response(update_or_query, f"❌ {symbol} çıkarılırken hata oluştu!")
+                await self._send_response(update_or_query, f"❌ {symbol} error occurred while removing!")
                 
         except Exception as e:
             logger.error(f"Error removing coin {symbol}: {str(e)}")
@@ -1279,7 +1279,7 @@ Sinyal üretmek için:
     async def _analyze_symbol(self, update_or_query, symbol: str):
         """Analyze symbol utility"""
         try:
-            await self._send_response(update_or_query, f"📊 {symbol} analiz ediliyor...")
+            await self._send_response(update_or_query, f"📊 {symbol} analyzing...")
             
             # Format symbol
             formatted_symbol = f"{symbol}_USDT" if "_" not in symbol else symbol
@@ -1290,8 +1290,8 @@ Sinyal üretmek için:
             if not signal:
                 await self._send_response(
                     update_or_query,
-                    f"❌ {symbol} için analiz yapılamadı!\n"
-                    f"Coin mevcut değil veya veri yetersiz."
+                    f"❌ {symbol} could not analyze!\n"
+                    f"Coin unavailable or insufficient data."
                 )
                 return
             
@@ -1327,7 +1327,7 @@ Sinyal üretmek için:
 • 24h Düşük: ${signal.market_data.low_24h:.6f}
 • Volume: {signal.market_data.volume:.0f}
 
-⏰ **Analiz Zamanı:** {signal.timestamp.strftime('%Y-%m-%d %H:%M:%S')}
+⏰ **Analysis Time:** {signal.timestamp.strftime('%Y-%m-%d %H:%M:%S')}
             """
             
             # Save signal to database
@@ -1337,7 +1337,7 @@ Sinyal üretmek için:
             
         except Exception as e:
             logger.error(f"Error analyzing {symbol}: {str(e)}")
-            await self._send_response(update_or_query, f"❌ Analiz hatası: {str(e)}")
+            await self._send_response(update_or_query, f"❌ Analysis error: {str(e)}")
     
     async def _send_response(self, update_or_query, text: str, reply_markup=None):
         """Send response utility (handles both Update and CallbackQuery)"""
@@ -1479,8 +1479,8 @@ Sinyal üretmek için:
             if update and update.effective_chat:
                 await context.bot.send_message(
                     chat_id=update.effective_chat.id,
-                    text="❌ Beklenmedik bir hata oluştu. Lütfen tekrar deneyin.\n\n"
-                         "Sorun devam ederse admin ile iletişime geçin.",
+                    text="❌ An unexpected error occurred. Please try again.\n\n"
+                         "If the problem persists, contact the admin.",
                     parse_mode=ParseMode.MARKDOWN
                 )
                 
@@ -1555,7 +1555,7 @@ Sinyal üretmek için:
 📊 Sinyal motoru çalışıyor
 💰 Exchange bağlantısı aktif
 
-Komutlar için `/help` yazın.
+Komutlar için `/help` type.
             """
             
             await self.application.bot.send_message(

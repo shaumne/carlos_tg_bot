@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class TechnicalIndicators:
-    """Teknik analiz göstergeleri"""
+    """Technical analysis indicators"""
     rsi: Optional[float] = None
     atr: Optional[float] = None
     ma_20: Optional[float] = None

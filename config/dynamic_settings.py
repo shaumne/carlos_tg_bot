@@ -3,12 +3,12 @@
 
 """
 Dynamic Settings Manager
-Kullanıcıların runtime'da ayarları değiştirmesini sağlayan sistem
+System allowing users to change settings at runtime
 
 Priority Order:
-1. Database settings (runtime changes) - EN YÜKSEK
-2. Environment variables (.env file) - ORTA  
-3. Default values (hardcoded) - EN DÜŞÜK
+1. Database settings (runtime changes) - HIGHEST
+2. Environment variables (.env file) - MEDIUM  
+3. Default values (hardcoded) - LOWEST
 """
 
 import logging
@@ -21,9 +21,9 @@ logger = logging.getLogger(__name__)
 
 class DynamicSettingsManager:
     """
-    Runtime'da değiştirilebilen ayar yönetimi sistemi
+    Runtime changeable setting management system
     
-    Özellikler:
+    Features:
     - Hot reload (restart gerektirmez)
     - Database persistence
     - Priority system (DB > ENV > Default)
@@ -45,21 +45,21 @@ class DynamicSettingsManager:
                     'type': 'float',
                     'min_value': 1.0,
                     'max_value': 1000.0,
-                    'description': 'İşlem miktarı (USDT)',
+                    'description': 'Trade amount (USDT)',
                     'restart_required': False
                 },
                 'max_positions': {
                     'type': 'int', 
                     'min_value': 1,
                     'max_value': 20,
-                    'description': 'Maksimum pozisyon sayısı',
+                    'description': 'Maximum position count',
                     'restart_required': False
                 },
                 'risk_per_trade': {
                     'type': 'float',
                     'min_value': 0.5,
                     'max_value': 10.0,
-                    'description': 'İşlem başına risk (%)',
+                    'description': 'Risk per trade (%)',
                     'restart_required': False
                 },
                 'enable_auto_trading': {
@@ -71,14 +71,14 @@ class DynamicSettingsManager:
                     'type': 'float',
                     'min_value': 1.0,
                     'max_value': 20.0,
-                    'description': 'Stop loss yüzdesi (%)',
+                    'description': 'Stop loss percentage (%)',
                     'restart_required': False
                 },
                 'take_profit_percentage': {
                     'type': 'float',
                     'min_value': 1.0,
                     'max_value': 50.0,
-                    'description': 'Take profit yüzdesi (%)',
+                    'description': 'Take profit percentage (%)',
                     'restart_required': False
                 }
             },
@@ -87,21 +87,21 @@ class DynamicSettingsManager:
                     'type': 'float',
                     'min_value': 10.0,
                     'max_value': 40.0,
-                    'description': 'RSI oversold seviyesi',
+                    'description': 'RSI oversold level',
                     'restart_required': False
                 },
                 'rsi_overbought': {
                     'type': 'float',
                     'min_value': 60.0,
                     'max_value': 90.0,
-                    'description': 'RSI overbought seviyesi',
+                    'description': 'RSI overbought level',
                     'restart_required': False
                 },
                 'atr_multiplier': {
                     'type': 'float',
                     'min_value': 1.0,
                     'max_value': 5.0,
-                    'description': 'ATR çarpanı (stop loss için)',
+                    'description': 'ATR multiplier (for stop loss)',
                     'restart_required': False
                 }
             },
@@ -113,7 +113,7 @@ class DynamicSettingsManager:
                 },
                 'notify_trades': {
                     'type': 'bool', 
-                    'description': 'İşlem bildirimleri',
+                    'description': 'Trade notifications',
                     'restart_required': False
                 },
                 'notify_errors': {
@@ -127,7 +127,7 @@ class DynamicSettingsManager:
                     'type': 'int',
                     'min_value': 10,
                     'max_value': 300,
-                    'description': 'Sinyal kontrol aralığı (saniye)',
+                    'description': 'Signal check interval (seconds)',
                     'restart_required': True
                 },
                 'backup_enabled': {
@@ -142,11 +142,11 @@ class DynamicSettingsManager:
     
     def get_setting(self, category: str, key: str, default_value: Any = None) -> Any:
         """
-        Setting değeri getir (priority order: DB > ENV > Default)
+        Get setting value (priority order: DB > ENV > Default)
         """
         with self._lock:
             try:
-                # 1. Database'den kontrol et (en yüksek priority)
+                # 1. Check from database (highest priority)
                 db_key = f"{category}.{key}"
                 db_value = self.db.get_setting(db_key)
                 
@@ -166,7 +166,7 @@ class DynamicSettingsManager:
                     logger.debug(f"Setting from DEFAULT: {category}.{key} = {default_value}")
                     return default_value
                 
-                # 4. Hiçbiri yoksa None
+                # 4. None if nothing found
                 logger.warning(f"Setting not found: {category}.{key}")
                 return None
                 
@@ -176,7 +176,7 @@ class DynamicSettingsManager:
     
     def set_setting(self, category: str, key: str, value: Any, user_id: int = None) -> bool:
         """
-        Setting değerini ayarla ve database'e kaydet
+        Set setting value and save to database
         """
         with self._lock:
             try:
@@ -201,7 +201,7 @@ class DynamicSettingsManager:
                     if cache_key in self._cached_settings:
                         del self._cached_settings[cache_key]
                     
-                    # Change callback'leri çağır
+                    # Call change callbacks
                     self._notify_setting_changed(category, key, value, user_id)
                     
                     logger.info(f"Setting updated: {category}.{key} = {value} (user: {user_id})")
@@ -225,11 +225,11 @@ class DynamicSettingsManager:
                 return False
     
     def get_user_configurable_settings(self) -> Dict[str, Dict]:
-        """Kullanıcının değiştirebileceği ayarları getir"""
+        """Get user-changeable settings"""
         return self.user_configurable_settings.copy()
     
     def get_category_settings(self, category: str) -> Dict[str, Any]:
-        """Bir kategorideki tüm ayarları getir"""
+        """Get all settings in a category"""
         try:
             if category not in self.user_configurable_settings:
                 return {}
@@ -253,7 +253,7 @@ class DynamicSettingsManager:
             return {}
     
     def reset_setting(self, category: str, key: str, user_id: int = None) -> bool:
-        """Setting'i default değerine sıfırla (database'den sil)"""
+        """Reset setting to default value (delete from database)"""
         with self._lock:
             try:
                 db_key = f"{category}.{key}"
@@ -288,7 +288,7 @@ class DynamicSettingsManager:
                 return False
     
     def _validate_setting(self, category: str, key: str, value: Any) -> bool:
-        """Setting değerini validate et"""
+        """Validate setting value"""
         try:
             if category not in self.user_configurable_settings:
                 return False
@@ -303,7 +303,7 @@ class DynamicSettingsManager:
             if value_type == 'bool':
                 if not isinstance(value, bool):
                     try:
-                        # String'den bool'a çevir
+                        # Convert string to bool
                         value = str(value).lower() in ('true', '1', 'yes', 'on')
                     except:
                         return False
@@ -336,7 +336,7 @@ class DynamicSettingsManager:
             return False
     
     def _convert_value_type(self, value: Any, category: str, key: str) -> Any:
-        """Değeri doğru tip'e çevir"""
+        """Convert value to correct type"""
         try:
             if category not in self.user_configurable_settings:
                 return value
@@ -363,7 +363,7 @@ class DynamicSettingsManager:
             return value
     
     def _get_setting_description(self, category: str, key: str) -> str:
-        """Setting açıklamasını getir"""
+        """Get setting description"""
         try:
             if category in self.user_configurable_settings:
                 if key in self.user_configurable_settings[category]:
@@ -373,14 +373,14 @@ class DynamicSettingsManager:
             return f"{category}.{key}"
     
     def register_change_callback(self, category: str, key: str, callback):
-        """Setting değişikliği için callback kaydet"""
+        """Register callback for setting change"""
         callback_key = f"{category}.{key}"
         if callback_key not in self._change_callbacks:
             self._change_callbacks[callback_key] = []
         self._change_callbacks[callback_key].append(callback)
     
     def _notify_setting_changed(self, category: str, key: str, new_value: Any, user_id: int = None):
-        """Setting değişikliği callback'lerini çağır"""
+        """Call setting change callbacks"""
         try:
             callback_key = f"{category}.{key}"
             if callback_key in self._change_callbacks:
@@ -393,7 +393,7 @@ class DynamicSettingsManager:
             logger.error(f"Error notifying setting change: {str(e)}")
     
     def export_settings(self) -> Dict[str, Any]:
-        """Tüm custom settings'leri export et"""
+        """Export all custom settings"""
         try:
             exported = {}
             
@@ -433,14 +433,14 @@ class DynamicSettingsManager:
             return False
     
     def get_settings_requiring_restart(self) -> List[str]:
-        """Restart gerektiren ayarları getir"""
+        """Get settings requiring restart"""
         restart_required = []
         
         try:
             for category, category_settings in self.user_configurable_settings.items():
                 for key, config in category_settings.items():
                     if config.get('restart_required', False):
-                        # Bu setting database'de var mı kontrol et
+                        # Check if this setting exists in database
                         db_key = f"{category}.{key}"
                         db_value = self.db.get_setting(db_key)
                         if db_value is not None:

@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class OrderResult:
-    """Order işlemi sonucu"""
+    """Order operation result"""
     success: bool
     order_id: Optional[str] = None
     error_message: Optional[str] = None
