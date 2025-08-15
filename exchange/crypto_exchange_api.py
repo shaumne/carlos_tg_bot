@@ -504,7 +504,7 @@ class CryptoExchangeAPI:
         Buy coin with specified USD amount using market order
         
         Args:
-            instrument_name (str): Trading pair (e.g., BTC_USDT)
+            instrument_name (str): Trading pair (e.g., BTC_USDT or BTCUSDT)
             amount_usd (float): Amount in USDT to spend
             
         Returns:
@@ -514,7 +514,13 @@ class CryptoExchangeAPI:
             if amount_usd is None:
                 amount_usd = self.trade_amount
                 
-            logger.info(f"Creating market buy order for {instrument_name} with ${amount_usd}")
+            # Validate and format instrument name
+            formatted_instrument = self._format_instrument_name(instrument_name)
+            if not formatted_instrument:
+                logger.error(f"Invalid or unsupported instrument: {instrument_name}")
+                return None
+                
+            logger.info(f"Creating market buy order for {formatted_instrument} with ${amount_usd}")
             
             # Check balance first
             if not self.has_sufficient_balance("USDT", amount_usd * 1.05):  # 5% buffer for fees
@@ -523,7 +529,7 @@ class CryptoExchangeAPI:
             
             # Create order params - ensure all numbers are strings
             params = {
-                "instrument_name": instrument_name,
+                "instrument_name": formatted_instrument,
                 "side": "BUY",
                 "type": "MARKET",
                 "notional": str(float(amount_usd))  # Convert to string as required
@@ -631,8 +637,21 @@ class CryptoExchangeAPI:
             str: Order ID if successful, None if failed
         """
         try:
-            # Extract base currency from instrument_name (e.g. BTC from BTC_USDT)
-            base_currency = instrument_name.split('_')[0]
+            # Validate and format instrument name
+            formatted_instrument = self._format_instrument_name(instrument_name)
+            if not formatted_instrument:
+                logger.error(f"Invalid or unsupported instrument: {instrument_name}")
+                return None
+            
+            # Extract base currency from formatted instrument name
+            if '_' in formatted_instrument:
+                base_currency = formatted_instrument.split('_')[0]
+            elif '/' in formatted_instrument:
+                base_currency = formatted_instrument.split('/')[0]
+            elif formatted_instrument.endswith('USDT'):
+                base_currency = formatted_instrument.replace('USDT', '')
+            else:
+                base_currency = formatted_instrument.split('-')[0]  # Handle BTC-USDT format
             
             # If quantity is not provided, get available balance
             if quantity is None:
@@ -647,18 +666,18 @@ class CryptoExchangeAPI:
                 quantity = available_balance * 0.99
                 logger.info(f"Using 99% of available balance: {quantity} {base_currency}")
             
-            formatted_quantity = self.format_quantity(instrument_name, quantity)
-            logger.info(f"Formatted quantity for {instrument_name}: {formatted_quantity}")
+            formatted_quantity = self.format_quantity(formatted_instrument, quantity)
+            logger.info(f"Formatted quantity for {formatted_instrument}: {formatted_quantity}")
             
             # Create sell order params
             params = {
-                "instrument_name": instrument_name,
+                "instrument_name": formatted_instrument,
                 "side": "SELL",
                 "type": "MARKET",
                 "quantity": formatted_quantity
             }
             
-            logger.info(f"Placing market sell order: SELL {formatted_quantity} {instrument_name}")
+            logger.info(f"Placing market sell order: SELL {formatted_quantity} {formatted_instrument}")
             
             # Send order request
             response = self.send_request("private/create-order", params)
@@ -951,6 +970,62 @@ class CryptoExchangeAPI:
             return []
     
     # ============ UTILITY METHODS ============
+    
+    def _format_instrument_name(self, instrument_name: str) -> Optional[str]:
+        """
+        Format instrument name to match Crypto.com Exchange format
+        
+        Args:
+            instrument_name (str): Input instrument (BTC_USDT, BTCUSDT, BTC/USDT)
+            
+        Returns:
+            str: Properly formatted instrument name, None if not supported
+        """
+        try:
+            # Clean the input
+            clean_name = instrument_name.strip().upper()
+            
+            # Remove separators and get base currency
+            if '_' in clean_name:
+                base_currency = clean_name.split('_')[0]
+            elif '/' in clean_name:
+                base_currency = clean_name.split('/')[0]
+            elif clean_name.endswith('USDT'):
+                base_currency = clean_name.replace('USDT', '')
+            else:
+                base_currency = clean_name
+            
+            # Get available trading pairs
+            available_pairs = self.get_trading_pairs()
+            
+            # Common format patterns to try
+            possible_formats = [
+                f"{base_currency}USDT",      # BTCUSDT
+                f"{base_currency}_USDT",     # BTC_USDT  
+                f"{base_currency}/USDT",     # BTC/USDT
+                f"{base_currency}-USDT",     # BTC-USDT (might be used)
+            ]
+            
+            # Check if any format matches available pairs
+            for format_name in possible_formats:
+                if format_name in available_pairs:
+                    logger.info(f"Found matching instrument: {format_name} for input: {instrument_name}")
+                    return format_name
+            
+            # If not found in available pairs, try to validate directly
+            for format_name in possible_formats:
+                if self.validate_instrument(format_name):
+                    logger.info(f"Validated instrument: {format_name} for input: {instrument_name}")
+                    return format_name
+            
+            logger.warning(f"No valid format found for instrument: {instrument_name}")
+            logger.info(f"Available pairs (first 10): {available_pairs[:10]}")
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error formatting instrument name {instrument_name}: {str(e)}")
+            return None
     
     def validate_instrument(self, instrument_name: str) -> bool:
         """Instrument geçerli mi kontrol et"""
