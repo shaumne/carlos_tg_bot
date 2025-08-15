@@ -129,11 +129,8 @@ class TelegramTradingBot:
         # Callback query handler
         self.application.add_handler(CallbackQueryHandler(self._handle_callback))
         
-        # Message handler for conversations
+        # Combined message handler for conversations and settings
         self.application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self._handle_message))
-        
-        # Settings message handler
-        self.application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.settings_handlers.handle_setting_value_input))
         
         # Error handler
         self.application.add_error_handler(self._error_handler)
@@ -1208,12 +1205,23 @@ Will appear here after trading.
     # ============ MESSAGE HANDLERS ============
     
     async def _handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Text message handler for conversations"""
+        """Text message handler for conversations and settings"""
         user_id = update.effective_user.id
         
         if not self._check_authorization(user_id):
             await self._send_unauthorized_message(update)
             return
+        
+        # First check if settings handler wants to handle this message
+        try:
+            # Check if user is in settings conversation
+            if user_id in self.settings_handlers.user_sessions:
+                session = self.settings_handlers.user_sessions[user_id]
+                if session.get('state') == WAITING_FOR_SETTING_VALUE:
+                    await self.settings_handlers.handle_setting_value_input(update, context)
+                    return
+        except Exception as e:
+            logger.error(f"Error handling settings input: {str(e)}")
         
         # Check if user is in a conversation
         if user_id not in self.user_sessions:
@@ -1913,16 +1921,26 @@ Will appear here after trading.
                 notes="; ".join(test_signal['reasoning']) if test_signal['reasoning'] else "Test signal"
             )
             
+            # Execute actual trade if enabled
+            trade_executed = False
+            if self.dynamic_settings.get_setting('trading', 'enable_auto_trading', False):
+                trade_result = await self._execute_signal_trade(symbol, action, current_price)
+                if trade_result:
+                    trade_executed = True
+            
             # Send notification
             await self._send_signal_notification(test_signal)
             
             # Confirm to user
+            trade_status = "✅ Trade Executed" if trade_executed else "📊 Signal Only (Auto-trading disabled)"
+            
             result_text = f"✅ <b>Test {action} Signal Created</b>\n\n"
             result_text += f"• Symbol: <code>{symbol}</code>\n"
             result_text += f"• Action: <b>{action}</b>\n"
             result_text += f"• Price: ${current_price:.6f}\n"
+            result_text += f"• Status: {trade_status}\n"
             result_text += f"• Signal ID: {signal_id}\n\n"
-            result_text += f"🤖 Bot will process this signal according to your settings.\n"
+            result_text += f"🤖 Bot processed this signal according to your settings.\n"
             result_text += f"Check <code>/signals</code> and <code>/portfolio</code> for updates."
             
             await self._send_response(update_or_query, result_text)
@@ -1974,6 +1992,67 @@ Will appear here after trading.
         except Exception as e:
             logger.error(f"Error generating signal for {symbol}: {str(e)}")
             return None
+    
+    async def _execute_signal_trade(self, symbol: str, action: str, price: float) -> bool:
+        """Execute actual trade based on signal"""
+        try:
+            # Check if auto trading is enabled
+            auto_trading = self.dynamic_settings.get_setting('trading', 'enable_auto_trading', False)
+            if not auto_trading:
+                logger.info(f"Auto trading disabled - skipping trade execution for {symbol}")
+                return False
+            
+            # Get trade amount
+            trade_amount = self.dynamic_settings.get_setting('trading', 'trade_amount', 10.0)
+            
+            # Format symbol for exchange (BTC -> BTCUSDT)
+            if '_' not in symbol and 'USDT' not in symbol:
+                exchange_symbol = f"{symbol}USDT"
+            else:
+                exchange_symbol = symbol
+            
+            logger.info(f"Attempting to execute {action} trade for {exchange_symbol} with ${trade_amount}")
+            
+            # Execute trade via exchange API
+            if action.upper() == "BUY":
+                # Check balance first
+                if not self.exchange_api.has_sufficient_balance():
+                    logger.warning(f"Insufficient balance for ${trade_amount} trade")
+                    return False
+                
+                # Execute buy order
+                result = self.exchange_api.buy_coin(exchange_symbol, trade_amount)
+                if result:
+                    logger.info(f"✅ BUY order executed for {exchange_symbol}: ${trade_amount}")
+                    
+                    # Log trade to database
+                    self.db.log_event(
+                        level="INFO",
+                        module="trade_execution", 
+                        message=f"BUY trade executed: {exchange_symbol} @ ${price:.6f}",
+                        details={
+                            "symbol": exchange_symbol,
+                            "action": "BUY",
+                            "amount_usd": trade_amount,
+                            "price": price,
+                            "order_result": str(result)
+                        }
+                    )
+                    return True
+                else:
+                    logger.error(f"❌ BUY order failed for {exchange_symbol}")
+                    return False
+                    
+            elif action.upper() == "SELL":
+                # TODO: Implement sell logic - need to check existing positions
+                logger.warning(f"SELL execution not yet implemented for {exchange_symbol}")
+                return False
+                
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error executing trade for {symbol}: {str(e)}")
+            return False
     
     async def _send_signal_notification(self, signal):
         """Send signal notification to users"""

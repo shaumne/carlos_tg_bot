@@ -38,11 +38,11 @@
       },
       "enable_auto_trading": {
         "title": "Enable Auto Trading",
-        "description": "Automatically execute trades based on signals",
-        "type": "boolean",
+        "description": "Automatically execute trades based on signals (⚠️ Real money!)",
+        "type": "boolean", 
         "default": false,
         "restart_required": false,
-        "validation": "Enable/disable automatic trade execution"
+        "validation": "Enable or disable automatic trading - when enabled, signals will trigger real trades"
       },
       "stop_loss_percentage": {
         "title": "Default Stop Loss (%)",
