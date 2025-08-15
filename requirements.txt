@@ -14,7 +14,8 @@ aiohttp
 urllib3
 
 # Database
-sqlite3  # Built-in with Python
+#sqlite3  # Built-in with Python
+db-sqlite3
 
 # Scientific computing and data analysis
 numpy
