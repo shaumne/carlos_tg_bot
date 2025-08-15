@@ -121,6 +121,11 @@ class TelegramTradingBot:
         self.application.add_handler(CommandHandler("logs", self._cmd_logs))
         self.application.add_handler(CommandHandler("backup", self._cmd_backup))
         
+        # Test commands
+        self.application.add_handler(CommandHandler("test_buy", self._cmd_test_buy))
+        self.application.add_handler(CommandHandler("test_sell", self._cmd_test_sell))
+        self.application.add_handler(CommandHandler("force_signal", self._cmd_force_signal))
+        
         # Callback query handler
         self.application.add_handler(CallbackQueryHandler(self._handle_callback))
         
@@ -293,6 +298,11 @@ Use any command to get started! 🎯
 • <code>/admin</code> - Admin panel
 • <code>/logs</code> - System logs
 • <code>/backup</code> - Database backup
+
+<b>🧪 Test Commands:</b>
+• <code>/test_buy [SYMBOL]</code> - Create manual BUY signal
+• <code>/test_sell [SYMBOL]</code> - Create manual SELL signal
+• <code>/force_signal</code> - Generate signals for all coins
 
 <b>💡 Tips:</b>
 • Commands can be used alone or with parameters
@@ -1009,21 +1019,21 @@ Will appear here after trading.
             return
         
         admin_text = """
-👑 **Admin Paneli**
+👑 <b>Admin Panel</b>
 
-**📊 Sistem Bilgileri:**
+<b>📊 System Information:</b>
 • Bot runtime
 • Memory usage
 • Database size
 • API call count
 
-**🔧 Management Operations:**
+<b>🔧 Management Operations:</b>
 • User authorization
 • System settings
 • Database maintenance
 • Log management
 
-**⚠️ Use carefully!**
+<b>⚠️ Use carefully!</b>
         """
         
         # Admin actions
@@ -1045,7 +1055,7 @@ Will appear here after trading.
         
         await update.message.reply_text(
             admin_text,
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
             reply_markup=reply_markup
         )
     
@@ -1151,6 +1161,19 @@ Will appear here after trading.
             await self.settings_handlers.handle_settings_status(query)
         elif data == "help":
             await self._handle_help_callback(query)
+        # Admin callbacks
+        elif data == "admin_users":
+            await self._handle_admin_users_callback(query)
+        elif data == "admin_stats":
+            await self._handle_admin_stats_callback(query)
+        elif data == "admin_settings":
+            await self._handle_admin_settings_callback(query)
+        elif data == "admin_logs":
+            await self._handle_admin_logs_callback(query)
+        elif data == "admin_backup":
+            await self._handle_admin_backup_callback(query)
+        elif data == "admin_restart":
+            await self._handle_admin_restart_callback(query)
         elif data.startswith("remove_coin_"):
             symbol = data.split("_", 2)[2]
             await self._remove_coin_from_watchlist(query, symbol)
@@ -1546,6 +1569,375 @@ Will appear here after trading.
         mock_update = MockUpdate(query)
         # For now, just show the same history but with more details
         await self._cmd_history(mock_update, None)
+    
+    # ============ ADMIN CALLBACK HANDLERS ============
+    
+    async def _handle_admin_users_callback(self, query):
+        """Handle admin users callback"""
+        if not self._is_admin(query.from_user.id):
+            await query.answer("❌ Admin access required.")
+            return
+        
+        try:
+            users_text = "<b>👥 User Management</b>\n\n"
+            users_text += f"<b>📊 Statistics:</b>\n"
+            users_text += f"• Total users: {len(self.config.telegram.authorized_users)}\n"
+            users_text += f"• Admin users: {len(self.config.telegram.admin_users)}\n\n"
+            
+            users_text += f"<b>👤 Authorized Users:</b>\n"
+            for user_id in self.config.telegram.authorized_users:
+                is_admin = user_id in self.config.telegram.admin_users
+                role = "👑 Admin" if is_admin else "👤 User"
+                users_text += f"• {role}: <code>{user_id}</code>\n"
+            
+            keyboard = [[InlineKeyboardButton("🔙 Back to Admin", callback_data="admin")]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(
+                users_text,
+                parse_mode=ParseMode.HTML,
+                reply_markup=reply_markup
+            )
+            
+        except Exception as e:
+            logger.error(f"Error in admin users callback: {str(e)}")
+            await query.answer("❌ Error loading user information.")
+    
+    async def _handle_admin_stats_callback(self, query):
+        """Handle admin stats callback"""
+        if not self._is_admin(query.from_user.id):
+            await query.answer("❌ Admin access required.")
+            return
+            
+        try:
+            stats_text = "<b>📊 System Statistics</b>\n\n"
+            
+            # Database stats
+            db_stats = self.db.get_database_stats()
+            stats_text += f"<b>🗄️ Database:</b>\n"
+            stats_text += f"• Size: {db_stats.get('db_size_mb', 0):.2f} MB\n"
+            stats_text += f"• Watched Coins: {db_stats.get('watched_coins_count', 0)}\n"
+            stats_text += f"• Active Positions: {db_stats.get('active_positions_count', 0)}\n"
+            stats_text += f"• Total Trades: {db_stats.get('total_trades', 0)}\n"
+            stats_text += f"• Signals (24h): {db_stats.get('signals_24h', 0)}\n\n"
+            
+            # System stats
+            try:
+                import psutil
+                stats_text += f"<b>🖥️ System:</b>\n"
+                stats_text += f"• CPU Usage: {psutil.cpu_percent():.1f}%\n"
+                stats_text += f"• Memory Usage: {psutil.virtual_memory().percent:.1f}%\n"
+                stats_text += f"• Disk Usage: {psutil.disk_usage('.').percent:.1f}%\n\n"
+            except ImportError:
+                stats_text += f"<b>🖥️ System:</b>\n• System monitoring not available\n\n"
+            
+            # Trading stats
+            stats_text += f"<b>💹 Trading:</b>\n"
+            stats_text += f"• Paper Trading: {'✅' if self.config.trading.paper_trading_enabled else '❌'}\n"
+            stats_text += f"• Auto Trading: {'✅' if self.config.trading.enable_auto_trading else '❌'}\n"
+            stats_text += f"• Trade Amount: {self.config.trading.trade_amount} USDT\n"
+            
+            keyboard = [[InlineKeyboardButton("🔙 Back to Admin", callback_data="admin")]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(
+                stats_text,
+                parse_mode=ParseMode.HTML,
+                reply_markup=reply_markup
+            )
+            
+        except Exception as e:
+            logger.error(f"Error in admin stats callback: {str(e)}")
+            await query.answer("❌ Error loading statistics.")
+    
+    async def _handle_admin_settings_callback(self, query):
+        """Handle admin settings callback"""
+        if not self._is_admin(query.from_user.id):
+            await query.answer("❌ Admin access required.")
+            return
+        
+        # Redirect to settings manager
+        await self.settings_handlers.handle_settings_main(query)
+    
+    async def _handle_admin_logs_callback(self, query):
+        """Handle admin logs callback"""
+        class MockUpdate:
+            def __init__(self, query):
+                self.effective_user = query.from_user
+                self.message = query.message
+                self.callback_query = query
+        
+        mock_update = MockUpdate(query)
+        await self._cmd_logs(mock_update, None)
+    
+    async def _handle_admin_backup_callback(self, query):
+        """Handle admin backup callback"""
+        class MockUpdate:
+            def __init__(self, query):
+                self.effective_user = query.from_user
+                self.message = query.message
+                self.callback_query = query
+        
+        mock_update = MockUpdate(query)
+        await self._cmd_backup(mock_update, None)
+    
+    async def _handle_admin_restart_callback(self, query):
+        """Handle admin restart callback"""
+        if not self._is_admin(query.from_user.id):
+            await query.answer("❌ Admin access required.")
+            return
+        
+        try:
+            await query.edit_message_text(
+                "<b>🔄 System Restart</b>\n\n"
+                "⚠️ <b>Warning:</b> This will restart the bot.\n\n"
+                "Are you sure you want to continue?",
+                parse_mode=ParseMode.HTML,
+                reply_markup=InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("✅ Yes, Restart", callback_data="confirm_restart"),
+                        InlineKeyboardButton("❌ Cancel", callback_data="admin")
+                    ]
+                ])
+            )
+        except Exception as e:
+            logger.error(f"Error in admin restart callback: {str(e)}")
+            await query.answer("❌ Error processing restart request.")
+    
+    # ============ TEST COMMANDS ============
+    
+    async def _cmd_test_buy(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Create manual BUY signal for testing"""
+        if not self._check_authorization(update.effective_user.id):
+            await self._send_unauthorized_message(update)
+            return
+        
+        # Get symbol from args or ask for it
+        if context.args and len(context.args) > 0:
+            symbol = context.args[0].upper()
+            await self._create_test_signal(update, symbol, "BUY")
+        else:
+            await self._send_response(
+                update,
+                "🧪 <b>Create Test BUY Signal</b>\n\n"
+                "Enter coin symbol to create BUY signal:\n"
+                "Example: <code>/test_buy BTC</code>\n\n"
+                "⚠️ This will create a manual BUY signal for testing purposes."
+            )
+    
+    async def _cmd_test_sell(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Create manual SELL signal for testing"""
+        if not self._check_authorization(update.effective_user.id):
+            await self._send_unauthorized_message(update)
+            return
+        
+        # Get symbol from args or ask for it
+        if context.args and len(context.args) > 0:
+            symbol = context.args[0].upper()
+            await self._create_test_signal(update, symbol, "SELL")
+        else:
+            await self._send_response(
+                update,
+                "🧪 <b>Create Test SELL Signal</b>\n\n"
+                "Enter coin symbol to create SELL signal:\n"
+                "Example: <code>/test_sell BTC</code>\n\n"
+                "⚠️ This will create a manual SELL signal for testing purposes."
+            )
+    
+    async def _cmd_force_signal(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Force signal generation for all watched coins"""
+        if not self._check_authorization(update.effective_user.id):
+            await self._send_unauthorized_message(update)
+            return
+        
+        try:
+            await self._send_response(
+                update,
+                "🔄 <b>Force Signal Generation</b>\n\n"
+                "Generating signals for all watched coins...\n"
+                "This may take a few moments."
+            )
+            
+            # Get watched coins
+            watched_coins = self.db.get_watched_coins()
+            signals_generated = 0
+            
+            for coin in watched_coins:
+                try:
+                    # Generate signal for this coin
+                    signal = await self._generate_signal_for_coin(coin['symbol'])
+                    if signal:
+                        signals_generated += 1
+                        # Save signal to database
+                        self.db.save_signal(
+                            symbol=coin['symbol'],
+                            signal_type=signal['action'],
+                            strength=signal.get('strength', 'medium'),
+                            price=signal.get('current_price', 0.0),
+                            indicators=signal.get('indicators', {}),
+                            reasoning=signal.get('reasoning', 'Forced signal generation')
+                        )
+                        
+                        # Send notification
+                        await self._send_signal_notification(signal)
+                        
+                except Exception as e:
+                    logger.error(f"Error generating signal for {coin['symbol']}: {str(e)}")
+            
+            result_text = f"✅ <b>Signal Generation Complete</b>\n\n"
+            result_text += f"• Processed: {len(watched_coins)} coins\n"
+            result_text += f"• Signals generated: {signals_generated}\n\n"
+            result_text += f"Check <code>/signals</code> to view results."
+            
+            await self._send_response(update, result_text)
+            
+        except Exception as e:
+            logger.error(f"Error in force signal command: {str(e)}")
+            await self._send_response(
+                update,
+                f"❌ Error generating signals:\n{str(e)}"
+            )
+    
+    async def _create_test_signal(self, update_or_query, symbol: str, action: str):
+        """Create a manual test signal"""
+        try:
+            # Check if coin is in watchlist
+            watched_coins = self.db.get_watched_coins()
+            coin_symbols = [coin['symbol'] for coin in watched_coins]
+            
+            if symbol not in coin_symbols:
+                await self._send_response(
+                    update_or_query,
+                    f"❌ <b>Coin not found in watchlist</b>\n\n"
+                    f"Add <code>{symbol}</code> to watchlist first with:\n"
+                    f"<code>/add_coin {symbol}</code>"
+                )
+                return
+            
+            # Get current price
+            try:
+                current_price = await self.signal_engine.get_current_price(symbol)
+                if not current_price:
+                    current_price = 1.0  # Fallback for testing
+            except:
+                current_price = 1.0
+            
+            # Create test signal
+            test_signal = {
+                'symbol': symbol,
+                'action': action,
+                'current_price': current_price,
+                'strength': 'medium',
+                'reasoning': f'Manual {action} signal created for testing',
+                'indicators': {
+                    'rsi': 50.0,
+                    'test_mode': True
+                },
+                'timestamp': datetime.now().isoformat()
+            }
+            
+            # Save to database
+            signal_id = self.db.save_signal(
+                symbol=symbol,
+                signal_type=action,
+                strength='medium',
+                price=current_price,
+                indicators=test_signal['indicators'],
+                reasoning=test_signal['reasoning']
+            )
+            
+            # Send notification
+            await self._send_signal_notification(test_signal)
+            
+            # Confirm to user
+            result_text = f"✅ <b>Test {action} Signal Created</b>\n\n"
+            result_text += f"• Symbol: <code>{symbol}</code>\n"
+            result_text += f"• Action: <b>{action}</b>\n"
+            result_text += f"• Price: ${current_price:.6f}\n"
+            result_text += f"• Signal ID: {signal_id}\n\n"
+            result_text += f"🤖 Bot will process this signal according to your settings.\n"
+            result_text += f"Check <code>/signals</code> and <code>/portfolio</code> for updates."
+            
+            await self._send_response(update_or_query, result_text)
+            
+        except Exception as e:
+            logger.error(f"Error creating test signal: {str(e)}")
+            await self._send_response(
+                update_or_query,
+                f"❌ Error creating test signal:\n{str(e)}"
+            )
+    
+    async def _generate_signal_for_coin(self, symbol: str):
+        """Generate signal for a specific coin"""
+        try:
+            # Use signal engine to analyze
+            indicators = await self.signal_engine.get_technical_indicators(symbol)
+            if not indicators:
+                return None
+            
+            # Simple signal logic for testing
+            rsi = indicators.rsi
+            if rsi and rsi < 30:
+                return {
+                    'symbol': symbol,
+                    'action': 'BUY',
+                    'current_price': indicators.current_price,
+                    'strength': 'strong' if rsi < 25 else 'medium',
+                    'reasoning': f'RSI oversold ({rsi:.1f})',
+                    'indicators': {
+                        'rsi': rsi,
+                        'price': indicators.current_price
+                    }
+                }
+            elif rsi and rsi > 70:
+                return {
+                    'symbol': symbol,
+                    'action': 'SELL',
+                    'current_price': indicators.current_price,
+                    'strength': 'strong' if rsi > 75 else 'medium',
+                    'reasoning': f'RSI overbought ({rsi:.1f})',
+                    'indicators': {
+                        'rsi': rsi,
+                        'price': indicators.current_price
+                    }
+                }
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error generating signal for {symbol}: {str(e)}")
+            return None
+    
+    async def _send_signal_notification(self, signal):
+        """Send signal notification to users"""
+        try:
+            action_emoji = "🟢" if signal['action'] == 'BUY' else "🔴"
+            strength_emoji = "🔥" if signal.get('strength') == 'strong' else "⚡"
+            
+            notification_text = f"""
+{action_emoji} <b>{signal['action']} SIGNAL</b> {strength_emoji}
+
+<b>📊 {signal['symbol']}/USDT</b>
+• Price: ${signal.get('current_price', 0):.6f}
+• Strength: {signal.get('strength', 'medium').title()}
+• Reason: {signal.get('reasoning', 'Technical analysis')}
+
+{signal.get('indicators', {})}
+            """
+            
+            # Send to all authorized users
+            for user_id in self.config.telegram.authorized_users:
+                try:
+                    await self.application.bot.send_message(
+                        chat_id=user_id,
+                        text=notification_text,
+                        parse_mode=ParseMode.HTML
+                    )
+                except Exception as e:
+                    logger.error(f"Error sending signal notification to {user_id}: {str(e)}")
+                    
+        except Exception as e:
+            logger.error(f"Error sending signal notification: {str(e)}")
     
     # ============ ERROR HANDLER ============
     
