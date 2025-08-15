@@ -909,18 +909,34 @@ class CryptoExchangeAPI:
         """Order geçmişini getir"""
         try:
             current_time = int(time.time() * 1000)
-            one_hour_ago = current_time - (60 * 60 * 1000)
+            # Use 7 days ago instead of 1 hour for better data coverage
+            seven_days_ago = current_time - (7 * 24 * 60 * 60 * 1000)
+            
+            # Validate limit (Crypto.com API typically accepts 1-200)
+            validated_limit = max(1, min(limit, 200))
+            logger.info(f"get_order_history called with limit={limit}, validated_limit={validated_limit}")
             
             params = {
-                "start_time": one_hour_ago,
+                "start_time": seven_days_ago,
                 "end_time": current_time,
-                "limit": limit
+                "limit": validated_limit
             }
             
             if instrument_name:
                 params["instrument_name"] = instrument_name
             
             response = self.send_request("private/get-order-history", params)
+            
+            # If limit error, try without limit parameter
+            if response.get("code") == 40003:  # Invalid limit error
+                logger.warning(f"Invalid limit error, retrying without limit parameter")
+                params_no_limit = {
+                    "start_time": seven_days_ago,
+                    "end_time": current_time
+                }
+                if instrument_name:
+                    params_no_limit["instrument_name"] = instrument_name
+                response = self.send_request("private/get-order-history", params_no_limit)
             
             if response.get("code") == 0:
                 orders_data = response.get("result", {}).get("data", [])
@@ -955,18 +971,34 @@ class CryptoExchangeAPI:
         """Trade geçmişini getir"""
         try:
             current_time = int(time.time() * 1000)
-            one_hour_ago = current_time - (60 * 60 * 1000)
+            # Use 7 days ago instead of 1 hour for better data coverage
+            seven_days_ago = current_time - (7 * 24 * 60 * 60 * 1000)
+            
+            # Validate limit (Crypto.com API typically accepts 1-200)
+            validated_limit = max(1, min(limit, 200))
+            logger.info(f"get_trade_history called with limit={limit}, validated_limit={validated_limit}")
             
             params = {
-                "start_time": one_hour_ago,
+                "start_time": seven_days_ago,
                 "end_time": current_time,
-                "limit": limit
+                "limit": validated_limit
             }
             
             if instrument_name:
                 params["instrument_name"] = instrument_name
             
             response = self.send_request("private/get-trades", params)
+            
+            # If limit error, try without limit parameter
+            if response.get("code") == 40003:  # Invalid limit error
+                logger.warning(f"Invalid limit error, retrying without limit parameter")
+                params_no_limit = {
+                    "start_time": seven_days_ago,
+                    "end_time": current_time
+                }
+                if instrument_name:
+                    params_no_limit["instrument_name"] = instrument_name
+                response = self.send_request("private/get-trades", params_no_limit)
             
             if response.get("code") == 0:
                 trades_data = response.get("result", {}).get("data", [])

@@ -736,9 +736,9 @@ To generate signals:
             return
         
         try:
-            # Get trade history directly from exchange
-            trade_history = self.exchange_api.get_trade_history(limit=20)
-            order_history = self.exchange_api.get_order_history(limit=10)
+            # Get trade history directly from exchange (use conservative limits)
+            trade_history = self.exchange_api.get_trade_history(limit=10)
+            order_history = self.exchange_api.get_order_history(limit=5)
             
             if not trade_history and not order_history:
                 history_text = """
@@ -1636,9 +1636,9 @@ History will appear here after you place trades.
                 await query.edit_message_text("❌ Unauthorized access!")
                 return
             
-            # Get more comprehensive history data
-            trade_history = self.exchange_api.get_trade_history(limit=50)
-            order_history = self.exchange_api.get_order_history(limit=25)
+            # Get more comprehensive history data (conservative limits)
+            trade_history = self.exchange_api.get_trade_history(limit=20)
+            order_history = self.exchange_api.get_order_history(limit=15)
             
             if not trade_history and not order_history:
                 history_text = """
