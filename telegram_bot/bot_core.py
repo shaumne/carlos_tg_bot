@@ -324,6 +324,8 @@ This bot trades with real money. Always be careful!
         try:
             # System information
             db_stats = self.db.get_database_stats()
+            # Refresh config from dynamic settings first
+            self.dynamic_settings.apply_runtime_settings(self.config)
             config_summary = self.config.get_config_summary()
             
             # Exchange connection test
@@ -400,6 +402,9 @@ This bot trades with real money. Always be careful!
             return
         
         try:
+            # Refresh config from dynamic settings
+            self.dynamic_settings.apply_runtime_settings(self.config)
+            
             # Active positions
             active_positions = self.db.get_active_positions()
             
@@ -489,6 +494,9 @@ To open positions:
             return
         
         try:
+            # Refresh config from dynamic settings
+            self.dynamic_settings.apply_runtime_settings(self.config)
+            
             # Get all balances
             balances = self.exchange_api.get_all_balances()
             
@@ -1174,6 +1182,8 @@ Will appear here after trading.
             await self._handle_admin_backup_callback(query)
         elif data == "admin_restart":
             await self._handle_admin_restart_callback(query)
+        elif data == "admin":
+            await self._handle_admin_callback(query)
         elif data.startswith("remove_coin_"):
             symbol = data.split("_", 2)[2]
             await self._remove_coin_from_watchlist(query, symbol)
@@ -1610,6 +1620,9 @@ Will appear here after trading.
             return
             
         try:
+            # Refresh config from dynamic settings first
+            self.dynamic_settings.apply_runtime_settings(self.config)
+            
             stats_text = "<b>📊 System Statistics</b>\n\n"
             
             # Database stats
@@ -1633,7 +1646,7 @@ Will appear here after trading.
             
             # Trading stats
             stats_text += f"<b>💹 Trading:</b>\n"
-            stats_text += f"• Paper Trading: {'✅' if self.config.trading.paper_trading_enabled else '❌'}\n"
+            stats_text += f"• Paper Trading: {'✅' if self.config.trading.enable_paper_trading else '❌'}\n"
             stats_text += f"• Auto Trading: {'✅' if self.config.trading.enable_auto_trading else '❌'}\n"
             stats_text += f"• Trade Amount: {self.config.trading.trade_amount} USDT\n"
             
@@ -1703,6 +1716,58 @@ Will appear here after trading.
         except Exception as e:
             logger.error(f"Error in admin restart callback: {str(e)}")
             await query.answer("❌ Error processing restart request.")
+    
+    async def _handle_admin_callback(self, query):
+        """Handle admin main callback - show admin panel"""
+        if not self._is_admin(query.from_user.id):
+            await query.answer("❌ Admin access required.")
+            return
+        
+        try:
+            admin_text = """
+👑 <b>Admin Panel</b>
+
+<b>📊 System Information:</b>
+• Bot runtime
+• Memory usage
+• Database size
+• API call count
+
+<b>🔧 Management Operations:</b>
+• User authorization
+• System settings
+• Database maintenance
+• Log management
+
+<b>⚠️ Use carefully!</b>
+            """
+            
+            # Admin actions
+            keyboard = [
+                [
+                    InlineKeyboardButton("👥 Users", callback_data="admin_users"),
+                    InlineKeyboardButton("📊 Statistics", callback_data="admin_stats")
+                ],
+                [
+                    InlineKeyboardButton("⚙️ Settings", callback_data="admin_settings"),
+                    InlineKeyboardButton("📋 Logs", callback_data="admin_logs")
+                ],
+                [
+                    InlineKeyboardButton("💾 Backup", callback_data="admin_backup"),
+                    InlineKeyboardButton("🔄 Restart", callback_data="admin_restart")
+                ]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(
+                admin_text,
+                parse_mode=ParseMode.HTML,
+                reply_markup=reply_markup
+            )
+            
+        except Exception as e:
+            logger.error(f"Error in admin callback: {str(e)}")
+            await query.answer("❌ Error loading admin panel.")
     
     # ============ TEST COMMANDS ============
     
@@ -1819,7 +1884,8 @@ Will appear here after trading.
                 current_price = await self.signal_engine.get_current_price(symbol)
                 if not current_price:
                     current_price = 1.0  # Fallback for testing
-            except:
+            except Exception as e:
+                logger.warning(f"Could not get price for {symbol}: {str(e)}")
                 current_price = 1.0
             
             # Create test signal
@@ -1922,7 +1988,9 @@ Will appear here after trading.
 • Strength: {signal.get('strength', 'medium').title()}
 • Reason: {signal.get('reasoning', 'Technical analysis')}
 
-{signal.get('indicators', {})}
+<b>📈 Indicators:</b>
+• RSI: {signal.get('indicators', {}).get('rsi', 'N/A')}
+• Price: ${signal.get('indicators', {}).get('price', 0):.6f}
             """
             
             # Send to all authorized users

@@ -30,6 +30,7 @@ class TechnicalIndicators:
     stoch_k: Optional[float] = None
     stoch_d: Optional[float] = None
     volume_sma: Optional[float] = None
+    current_price: Optional[float] = None
 
 @dataclass
 class MarketData:
@@ -344,6 +345,51 @@ class SignalEngine:
         self._cache_timeout = 60  # seconds
         
         logger.info("Signal engine initialized")
+    
+    async def get_technical_indicators(self, symbol: str) -> Optional[TechnicalIndicators]:
+        """Get technical indicators for a symbol"""
+        try:
+            logger.debug(f"Getting technical indicators for: {symbol}")
+            
+            # Get market data
+            market_data = self.market_data_provider.get_market_data(symbol)
+            if not market_data:
+                logger.warning(f"Could not get market data for {symbol}")
+                return None
+            
+            # Get OHLCV data
+            ohlcv_data = self.market_data_provider.get_ohlcv_data(symbol)
+            if not ohlcv_data or len(ohlcv_data) < 50:
+                logger.warning(f"Insufficient OHLCV data for {symbol}")
+                return None
+            
+            # Create price lists
+            opens = [float(candle[1]) for candle in ohlcv_data]
+            highs = [float(candle[2]) for candle in ohlcv_data]
+            lows = [float(candle[3]) for candle in ohlcv_data]
+            closes = [float(candle[4]) for candle in ohlcv_data]
+            volumes = [float(candle[5]) for candle in ohlcv_data]
+            
+            # Calculate technical indicators
+            indicators = self._calculate_indicators(opens, highs, lows, closes, volumes)
+            
+            # Add current price to indicators
+            indicators.current_price = market_data.price
+            
+            return indicators
+            
+        except Exception as e:
+            logger.error(f"Error getting technical indicators for {symbol}: {str(e)}")
+            return None
+    
+    async def get_current_price(self, symbol: str) -> Optional[float]:
+        """Get current price for a symbol"""
+        try:
+            market_data = self.market_data_provider.get_market_data(symbol)
+            return market_data.price if market_data else None
+        except Exception as e:
+            logger.error(f"Error getting current price for {symbol}: {str(e)}")
+            return None
     
     def analyze_symbol(self, symbol: str) -> Optional[TradingSignal]:
         """Bir symbol için teknik analiz yap ve sinyal üret"""
