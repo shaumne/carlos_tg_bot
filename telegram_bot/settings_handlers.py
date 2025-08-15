@@ -153,63 +153,6 @@ class SettingsHandlers:
                 await update_or_query.edit_message_text(error_message)
             else:
                 await update_or_query.message.reply_text(error_message)
-                description = setting_info['description']
-                setting_type = setting_info['type']
-                restart_required = setting_info.get('restart_required', False)
-                
-                # Format value display
-                if setting_type == 'bool':
-                    value_display = "✅ Active" if value else "❌ Inactive"
-                elif setting_type in ['int', 'float']:
-                    min_val = setting_info.get('min_value')
-                    max_val = setting_info.get('max_value')
-                    range_info = f" ({min_val}-{max_val})" if min_val is not None and max_val is not None else ""
-                    value_display = f"{value}{range_info}"
-                else:
-                    value_display = str(value)
-                
-                restart_indicator = " 🔄" if restart_required else ""
-                
-                settings_text += f"• **{description}**{restart_indicator}\n"
-                settings_text += f"  Value: `{value_display}`\n\n"
-            
-            if any(s.get('restart_required', False) for s in category_settings.values()):
-                settings_text += "\n🔄 = Requires restart after change"
-            
-            # Create keyboard for individual setting changes
-            keyboard = []
-            
-            # Setting buttons (max 2 per row)
-            setting_buttons = []
-            for key, setting_info in category_settings.items():
-                button_text = setting_info['description'][:25] + "..." if len(setting_info['description']) > 25 else setting_info['description']
-                setting_buttons.append(
-                    InlineKeyboardButton(
-                        f"✏️ {button_text}", 
-                        callback_data=f"settings_edit_{category}_{key}"
-                    )
-                )
-            
-            # Group buttons in rows of 2
-            for i in range(0, len(setting_buttons), 2):
-                row = setting_buttons[i:i+2]
-                keyboard.append(row)
-            
-            # Control buttons
-            keyboard.extend([
-                [
-                    InlineKeyboardButton("🔄 Reset Category", callback_data=f"settings_reset_category_{category}"),
-                    InlineKeyboardButton("📊 Status", callback_data="settings_status")
-                ],
-                [
-                    InlineKeyboardButton("⬅️ Back", callback_data="settings_main"),
-                    InlineKeyboardButton("🏠 Main Menu", callback_data="main_menu")
-                ]
-            ])
-            
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            await self._send_or_edit_message(update_or_query, settings_text, reply_markup)
             
         except Exception as e:
             logger.error(f"Error showing category {category}: {str(e)}")
@@ -218,19 +161,21 @@ class SettingsHandlers:
     async def handle_setting_edit(self, update_or_query, category: str, key: str):
         """Edit specific setting"""
         try:
-            category_settings = self.settings_manager.get_category_settings(category)
+            # Get setting configuration from JSON
+            setting_config = self.settings_manager.get_setting_config(category, key)
             
-            if key not in category_settings:
+            if not setting_config:
                 await self._send_error_message(update_or_query, f"Setting not found: {category}.{key}")
                 return
             
-            setting_info = category_settings[key]
-            current_value = setting_info['value']
-            description = setting_info['description']
-            setting_type = setting_info['type']
-            min_val = setting_info.get('min_value')
-            max_val = setting_info.get('max_value')
-            restart_required = setting_info.get('restart_required', False)
+            # Get current value
+            current_value = self.settings_manager.get_setting(category, key)
+            description = setting_config.get('description', '')
+            setting_title = setting_config.get('title', key)
+            setting_type = setting_config.get('type', 'string')
+            min_val = setting_config.get('min')
+            max_val = setting_config.get('max')
+            restart_required = setting_config.get('restart_required', False)
             
             # Create edit interface based on setting type
             if setting_type == 'bool':
@@ -289,7 +234,7 @@ Enter new value or type 'cancel' to cancel.
                     'state': WAITING_FOR_SETTING_VALUE,
                     'category': category,
                     'key': key,
-                    'setting_info': setting_info
+                    'setting_config': setting_config
                 }
                 
         except Exception as e:
@@ -312,7 +257,7 @@ Enter new value or type 'cancel' to cancel.
             
             category = session['category']
             key = session['key']
-            setting_info = session['setting_info']
+            setting_config = session['setting_config']
             
             # Handle cancel
             if text.lower() in ['iptal', 'cancel']:
@@ -326,7 +271,7 @@ Enter new value or type 'cancel' to cancel.
                 return
             
             # Parse and validate value
-            setting_type = setting_info['type']
+            setting_type = setting_config.get('type', 'string')
             
             try:
                 if setting_type == 'int':
@@ -344,8 +289,8 @@ Enter new value or type 'cancel' to cancel.
                 return
             
             # Validate range
-            min_val = setting_info.get('min_value')
-            max_val = setting_info.get('max_value')
+            min_val = setting_config.get('min')
+            max_val = setting_config.get('max')
             
             if setting_type in ['int', 'float']:
                 if min_val is not None and new_value < min_val:
@@ -377,8 +322,8 @@ Enter new value or type 'cancel' to cancel.
             success = self.settings_manager.set_setting(category, key, new_value, user_id)
             
             if success:
-                description = setting_info['description']
-                restart_required = setting_info.get('restart_required', False)
+                description = setting_config.get('description', key)
+                restart_required = setting_config.get('restart_required', False)
                 
                 message = f"✅ **{description}** updated!\n\n"
                 message += f"New value: `{new_value}`"
@@ -473,10 +418,10 @@ To import use `/settings` → Import.
             restart_count = len(restart_required)
             
             # Count runtime settings
-            for category in ['trading', 'technical', 'notifications', 'system']:
-                category_settings = self.settings_manager.get_category_settings(category)
-                for key, setting_info in category_settings.items():
-                    if not setting_info.get('restart_required', False):
+            for category, cat_config in self.settings_config.items():
+                settings = cat_config.get('settings', {})
+                for key, setting_config in settings.items():
+                    if not setting_config.get('restart_required', False):
                         db_key = f"{category}.{key}"
                         if self.settings_manager.db.get_setting(db_key) is not None:
                             runtime_count += 1
@@ -507,17 +452,35 @@ To import use `/settings` → Import.
         """Reset category settings"""
         try:
             user_id = self._get_user_id(update_or_query)
-            category_settings = self.settings_manager.get_category_settings(category)
             
-            if not category_settings:
+            # Get category configuration from JSON
+            cat_config = self.settings_config.get(category)
+            if not cat_config:
                 await self._send_error_message(update_or_query, f"Category not found: {category}")
+                return
+            
+            settings = cat_config.get('settings', {})
+            if not settings:
+                await self._send_error_message(update_or_query, f"No settings found for category: {category}")
                 return
             
             reset_count = 0
             
-            for key in category_settings.keys():
-                if self.settings_manager.reset_setting(category, key, user_id):
-                    reset_count += 1
+            # Reset each setting in the category by deleting from database
+            for key in settings.keys():
+                try:
+                    db_key = f"{category}.{key}"
+                    # Delete from database to revert to default
+                    query = "DELETE FROM bot_settings WHERE key = ?"
+                    rows_affected = self.settings_manager.db.execute_update(query, (db_key,))
+                    if rows_affected > 0:
+                        reset_count += 1
+                        # Clear cache
+                        cache_key = f"{category}.{key}"
+                        if cache_key in self.settings_manager._cached_settings:
+                            del self.settings_manager._cached_settings[cache_key]
+                except Exception as e:
+                    logger.error(f"Error resetting {category}.{key}: {str(e)}")
             
             category_titles = {
                 'trading': 'Trading',
