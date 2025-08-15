@@ -8,3 +8,26 @@
 2025-08-15 17:58:37 | database.database_manager |     INFO | database_manager.py:730 | close() | Database connection closed
 2025-08-15 17:58:37 | config.config |     INFO | config.py:163 | load_config() | No config file found, using default values
 2025-08-15 17:58:37 | config.config |     INFO | config.py:163 | load_config() | No config file found, using default values
+2025-08-15 18:15:33 | telegram_trading_bot |     INFO | logging_setup.py:91 | setup_logging() | Logging initialized - Level: INFO, File: logs/test.log
+2025-08-15 18:15:33 | telegram_trading_bot |     INFO | test_setup.py:90 | test_logging() | Test info message
+2025-08-15 18:15:33 | telegram_trading_bot |  WARNING | test_setup.py:91 | test_logging() | Test warning message
+2025-08-15 18:15:33 | database.database_manager |     INFO | database_manager.py:71 | initialize_database() | Database schema initialized successfully
+2025-08-15 18:15:33 | database.database_manager |     INFO | database_manager.py:32 | __init__() | Database manager initialized: data/test_trading_bot.db
+2025-08-15 18:15:33 | database.database_manager |     INFO | database_manager.py:124 | add_watched_coin() | Added coin to watchlist: BTC (BTC_USDT)
+2025-08-15 18:15:33 | database.database_manager |     INFO | database_manager.py:494 | set_setting() | Updated setting test_setting = test_value
+2025-08-15 18:15:33 | database.database_manager |     INFO | database_manager.py:730 | close() | Database connection closed
+2025-08-15 18:15:33 | config.config |     INFO | config.py:156 | load_config() | No config file found, using default values
+2025-08-15 18:15:33 | config.config |     INFO | config.py:146 | __init__() | Configuration manager initialized successfully
+2025-08-15 18:15:33 | database.database_manager |     INFO | database_manager.py:71 | initialize_database() | Database schema initialized successfully
+2025-08-15 18:15:33 | database.database_manager |     INFO | database_manager.py:32 | __init__() | Database manager initialized: data/test_trading_bot.db
+2025-08-15 18:15:33 | signals.signal_engine |     INFO | signal_engine.py:266 | __init__() | Market data provider initialized with Binance
+2025-08-15 18:15:33 | signals.signal_engine |     INFO | signal_engine.py:346 | __init__() | Signal engine initialized
+2025-08-15 18:15:37 | database.database_manager |     INFO | database_manager.py:730 | close() | Database connection closed
+2025-08-15 18:15:37 | config.config |     INFO | config.py:156 | load_config() | No config file found, using default values
+2025-08-15 18:15:37 | config.config |     INFO | config.py:146 | __init__() | Configuration manager initialized successfully
+2025-08-15 18:15:37 | exchange.crypto_exchange_api |     INFO | crypto_exchange_api.py:92 | __init__() | CryptoExchangeAPI initialized - Trading: https://api.crypto.com/exchange/v1/, Account: https://api.crypto.com/v2/
+2025-08-15 18:15:38 | exchange.crypto_exchange_api |    ERROR | crypto_exchange_api.py:263 | send_request() | HTTP Error 401: {"id":1755249337488,"method":"private/get-account-summary","code":10003,"message":"IP_ILLEGAL"}
+2025-08-15 18:15:38 | exchange.crypto_exchange_api |    ERROR | crypto_exchange_api.py:263 | send_request() | HTTP Error 401: {"id":1755249337488,"method":"private/get-account-summary","code":10003,"message":"IP_ILLEGAL"}
+2025-08-15 18:15:38 | exchange.crypto_exchange_api |    ERROR | crypto_exchange_api.py:263 | send_request() | HTTP Error 401: {"id":1755249337488,"method":"private/get-account-summary","code":10003,"message":"IP_ILLEGAL"}
+2025-08-15 18:15:38 | exchange.crypto_exchange_api |    ERROR | crypto_exchange_api.py:306 | get_account_summary() | Failed to get account summary: {'error': 'HTTP 401', 'message': '{"id":1755249337488,"method":"private/get-account-summary","code":10003,"message":"IP_ILLEGAL"}'}
+2025-08-15 18:15:38 | exchange.crypto_exchange_api |    ERROR | crypto_exchange_api.py:98 | __init__() | ❌ Exchange API authentication failed

@@ -205,20 +205,34 @@ class ConfigManager:
         if authorized_users_env:
             try:
                 authorized_users = json.loads(authorized_users_env)
+                # Ensure it's a list
+                if not isinstance(authorized_users, list):
+                    authorized_users = [authorized_users] if authorized_users else []
             except json.JSONDecodeError:
                 # Comma-separated list olarak da kabul et
                 authorized_users = [int(x.strip()) for x in authorized_users_env.split(',') if x.strip().isdigit()]
         else:
             authorized_users = config_section.get('authorized_users', [])
         
+        # Ensure authorized_users is always a list
+        if not isinstance(authorized_users, list):
+            authorized_users = [authorized_users] if authorized_users else []
+        
         admin_users_env = os.getenv('TELEGRAM_ADMIN_USERS', '')
         if admin_users_env:
             try:
                 admin_users = json.loads(admin_users_env)
+                # Ensure it's a list
+                if not isinstance(admin_users, list):
+                    admin_users = [admin_users] if admin_users else []
             except json.JSONDecodeError:
                 admin_users = [int(x.strip()) for x in admin_users_env.split(',') if x.strip().isdigit()]
         else:
             admin_users = config_section.get('admin_users', [])
+        
+        # Ensure admin_users is always a list
+        if not isinstance(admin_users, list):
+            admin_users = [admin_users] if admin_users else []
         
         return TelegramConfig(
             bot_token=bot_token,
