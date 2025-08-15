@@ -393,71 +393,94 @@ This bot trades with real money. Always be careful!
             )
     
     async def _cmd_portfolio(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Portfolio command"""
+        """Portfolio command - get data directly from exchange"""
         if not self._check_authorization(update.effective_user.id):
             await self._send_unauthorized_message(update)
             return
         
         try:
-            # Refresh config from dynamic settings
-            self.dynamic_settings.apply_runtime_settings(self.config)
+            # Get all balances from exchange
+            all_balances = self.exchange_api.get_all_balances()
             
-            # Active positions
-            active_positions = self.db.get_active_positions()
+            # Filter out zero balances and USDT (show separately)
+            significant_balances = []
+            usdt_balance = 0
             
-            if not active_positions:
+            for balance in all_balances:
+                if balance.available > 0.00001:  # Filter very small amounts
+                    if balance.currency == "USDT":
+                        usdt_balance = balance.available
+                    else:
+                        significant_balances.append(balance)
+            
+            if not significant_balances and usdt_balance < 1:
                 portfolio_text = """
 💰 <b>Portfolio Report</b>
 
-📭 <b>No active positions found.</b>
+📭 <b>No significant balances found.</b>
 
-To open positions:
-• <code>/watchlist</code> to view tracked coins
+To start trading:
+• Deposit funds to your exchange account
+• Use <code>/signals</code> to view trading opportunities
 • <code>/signals</code> to check trading signals
 • <code>/add_coin [SYMBOL]</code> to add new coins
                 """
             else:
                 portfolio_text = "💰 <b>Portfolio Report</b>\n\n"
-                total_pnl = 0
                 
-                for pos in active_positions:
-                    symbol = pos['symbol']
-                    entry_price = pos['entry_price']
-                    quantity = pos['quantity']
+                # Show USDT balance first
+                if usdt_balance > 0:
+                    portfolio_text += f"💵 <b>USDT Balance:</b> ${usdt_balance:.2f}\n\n"
+                
+                # Show crypto balances
+                portfolio_text += f"🪙 <b>Crypto Holdings</b> ({len(significant_balances)})\n"
+                
+                total_value_usd = usdt_balance
+                
+                for balance in significant_balances:
+                    currency = balance.currency
+                    available = balance.available
+                    total = balance.total
+                    locked = balance.locked
                     
-                    # Current price
+                    # Get current price in USDT
                     try:
-                        current_price = self.exchange_api.get_current_price(pos['formatted_symbol'])
+                        price_symbol = f"{currency}_USDT"
+                        current_price = self.exchange_api.get_current_price(price_symbol)
+                        
                         if current_price:
-                            pnl = (current_price - entry_price) * quantity
-                            pnl_pct = ((current_price - entry_price) / entry_price) * 100
-                            total_pnl += pnl
-                            
-                            status_emoji = "🟢" if pnl > 0 else "🔴" if pnl < 0 else "⚪"
+                            value_usd = available * current_price
+                            total_value_usd += value_usd
                             
                             portfolio_text += f"""
-{status_emoji} <b>{symbol}</b>
-• Entry: ${entry_price:.6f}
-• Current: ${current_price:.6f}
-• Quantity: {quantity:.6f}
-• P&L: ${pnl:.2f} ({pnl_pct:+.2f}%)
-• TP: ${pos.get('take_profit', 0):.6f}
-• SL: ${pos.get('stop_loss', 0):.6f}
+💎 <b>{currency}</b>
+• Available: {available:.6f}
+• Total: {total:.6f}
+• Locked: {locked:.6f}
+• Price: ${current_price:.6f}
+• Value: ${value_usd:.2f}
 
                             """
                         else:
                             portfolio_text += f"""
-⚪ <b>{symbol}</b>
-• Entry: ${entry_price:.6f}
-• Quantity: {quantity:.6f}
-• Price unavailable
+💎 <b>{currency}</b>
+• Available: {available:.6f}
+• Total: {total:.6f}
+• Locked: {locked:.6f}
+• Price: N/A
 
                             """
                     except Exception as e:
-                        logger.error(f"Error getting price for {symbol}: {str(e)}")
+                        logger.error(f"Error getting price for {currency}: {str(e)}")
+                        portfolio_text += f"""
+💎 <b>{currency}</b>
+• Available: {available:.6f}
+• Total: {total:.6f}
+• Locked: {locked:.6f}
+
+                        """
                 
-                total_emoji = "🟢" if total_pnl > 0 else "🔴" if total_pnl < 0 else "⚪"
-                portfolio_text += f"\n{total_emoji} <b>Total P&L: ${total_pnl:.2f}</b>"
+                portfolio_text += f"\n💰 <b>Total Portfolio Value: ${total_value_usd:.2f}</b>"
             
             # Portfolio actions
             keyboard = [
@@ -707,53 +730,83 @@ To generate signals:
             )
     
     async def _cmd_history(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """History command"""
+        """History command - get data directly from exchange"""
         if not self._check_authorization(update.effective_user.id):
             await self._send_unauthorized_message(update)
             return
         
         try:
-            trade_history = self.db.get_trade_history(limit=10)
+            # Get trade history directly from exchange
+            trade_history = self.exchange_api.get_trade_history(limit=20)
+            order_history = self.exchange_api.get_order_history(limit=10)
             
-            if not trade_history:
+            if not trade_history and not order_history:
                 history_text = """
-📜 <b>Trade History</b>
+📜 <b>Trading History</b>
 
-📭 <b>No trade history found yet.</b>
+📭 <b>No trading history found.</b>
 
-Will appear here after trading.
+History will appear here after you place trades.
                 """
             else:
-                history_text = f"📜 <b>Recent Trades</b> ({len(trade_history)})\n\n"
+                history_text = f"📜 <b>Recent Trading Activity</b>\n\n"
                 
-                total_pnl = 0
-                for trade in trade_history[:5]:  # Show last 5
-                    symbol = trade['symbol']
-                    action = trade['action']
-                    price = trade['price']
-                    quantity = trade['quantity']
-                    pnl = trade.get('pnl', 0)
-                    timestamp = trade['timestamp']
+                # Show recent trades
+                if trade_history:
+                    history_text += f"💱 <b>Recent Trades</b> ({len(trade_history)})\n"
                     
-                    action_emoji = "🟢" if action == "BUY" else "🔴"
-                    pnl_emoji = "💚" if pnl > 0 else "❤️" if pnl < 0 else "💛"
-                    
-                    total_pnl += pnl
-                    
-                    history_text += f"""
-{action_emoji} **{symbol}** - {action}
-• Fiyat: ${price:.6f}
-• Miktar: {quantity:.6f}
-• P&L: {pnl_emoji} ${pnl:.2f}
-• Tarih: {timestamp[:16]}
+                    for trade in trade_history[:5]:  # Show last 5
+                        symbol = trade.instrument_name
+                        action = trade.side
+                        price = trade.price
+                        quantity = trade.quantity
+                        fee = trade.fee
+                        timestamp = trade.timestamp if hasattr(trade, 'timestamp') else 'N/A'
+                        
+                        action_emoji = "🟢" if action == "BUY" else "🔴"
+                        
+                        history_text += f"""
+{action_emoji} <b>{symbol}</b> - {action}
+• Price: ${price:.6f}
+• Quantity: {quantity:.6f}
+• Fee: ${fee:.4f}
+• Time: {timestamp[:16] if timestamp != 'N/A' else 'N/A'}
 
-                    """
+                        """
+                    
+                    if len(trade_history) > 5:
+                        history_text += f"... and {len(trade_history) - 5} more trades\n\n"
                 
-                if len(trade_history) > 5:
-                    history_text += f"... ve {len(trade_history) - 5} more trades\n\n"
-                
-                pnl_emoji = "💚" if total_pnl > 0 else "❤️" if total_pnl < 0 else "💛"
-                history_text += f"{pnl_emoji} **Toplam P&L: ${total_pnl:.2f}**"
+                # Show recent orders
+                if order_history:
+                    history_text += f"📝 <b>Recent Orders</b> ({len(order_history)})\n"
+                    
+                    for order in order_history[:3]:  # Show last 3
+                        symbol = order.instrument_name
+                        side = order.side
+                        status = order.status
+                        price = order.price
+                        quantity = order.quantity
+                        filled_qty = order.filled_quantity
+                        
+                        status_emoji = {
+                            "FILLED": "✅",
+                            "ACTIVE": "🟡", 
+                            "CANCELLED": "❌",
+                            "REJECTED": "🚫",
+                            "EXPIRED": "⏰"
+                        }.get(status, "❓")
+                        
+                        side_emoji = "🟢" if side == "BUY" else "🔴"
+                        
+                        history_text += f"""
+{side_emoji} <b>{symbol}</b> - {side} {status_emoji}
+• Status: {status}
+• Price: ${price:.6f}
+• Quantity: {quantity:.6f}
+• Filled: {filled_qty:.6f}
+
+                        """
             
             # History actions
             keyboard = [
@@ -1577,16 +1630,110 @@ Will appear here after trading.
         await self._cmd_analyze(mock_update, mock_context)
     
     async def _handle_detailed_history_callback(self, query):
-        """Handle detailed history callback"""
-        class MockUpdate:
-            def __init__(self, query):
-                self.effective_user = query.from_user
-                self.message = query.message
-                self.callback_query = query
-        
-        mock_update = MockUpdate(query)
-        # For now, just show the same history but with more details
-        await self._cmd_history(mock_update, None)
+        """Handle detailed history callback - show comprehensive trading history"""
+        try:
+            if not self._check_authorization(query.from_user.id):
+                await query.edit_message_text("❌ Unauthorized access!")
+                return
+            
+            # Get more comprehensive history data
+            trade_history = self.exchange_api.get_trade_history(limit=50)
+            order_history = self.exchange_api.get_order_history(limit=25)
+            
+            if not trade_history and not order_history:
+                history_text = """
+📜 <b>Detailed Trading History</b>
+
+📭 <b>No trading history found.</b>
+
+History will appear here after you place trades.
+                """
+            else:
+                history_text = f"📜 <b>Detailed Trading History</b>\n\n"
+                
+                # Statistics
+                total_trades = len(trade_history)
+                total_orders = len(order_history)
+                total_fees = sum(trade.fee for trade in trade_history)
+                
+                history_text += f"""
+📊 <b>Statistics</b>
+• Total Trades: {total_trades}
+• Total Orders: {total_orders}  
+• Total Fees: ${total_fees:.4f}
+
+                """
+                
+                # Show all trades with more details
+                if trade_history:
+                    history_text += f"💱 <b>All Trades</b> (Last {len(trade_history)})\n"
+                    
+                    for i, trade in enumerate(trade_history[:10], 1):  # Show last 10
+                        symbol = trade.instrument_name
+                        action = trade.side
+                        price = trade.price
+                        quantity = trade.quantity
+                        fee = trade.fee
+                        trade_id = trade.trade_id[:8] if trade.trade_id else 'N/A'
+                        timestamp = trade.timestamp if hasattr(trade, 'timestamp') else 'N/A'
+                        
+                        action_emoji = "🟢" if action == "BUY" else "🔴"
+                        
+                        history_text += f"""
+{i}. {action_emoji} <b>{symbol}</b> - {action}
+   • Price: ${price:.6f}
+   • Qty: {quantity:.6f}
+   • Fee: ${fee:.4f}
+   • ID: {trade_id}
+   • Time: {timestamp[:16] if timestamp != 'N/A' else 'N/A'}
+
+                        """
+                    
+                    if len(trade_history) > 10:
+                        history_text += f"... and {len(trade_history) - 10} more trades\n\n"
+                
+                # Show order status breakdown
+                if order_history:
+                    status_counts = {}
+                    for order in order_history:
+                        status = order.status
+                        status_counts[status] = status_counts.get(status, 0) + 1
+                    
+                    history_text += f"📝 <b>Order Status Breakdown</b>\n"
+                    for status, count in status_counts.items():
+                        emoji = {
+                            "FILLED": "✅",
+                            "ACTIVE": "🟡", 
+                            "CANCELLED": "❌",
+                            "REJECTED": "🚫",
+                            "EXPIRED": "⏰"
+                        }.get(status, "❓")
+                        history_text += f"• {emoji} {status}: {count}\n"
+            
+            # Navigation buttons
+            keyboard = [
+                [
+                    InlineKeyboardButton("🔄 Refresh", callback_data="detailed_history"),
+                    InlineKeyboardButton("📊 Summary", callback_data="history")
+                ],
+                [
+                    InlineKeyboardButton("💰 Portfolio", callback_data="portfolio"),
+                    InlineKeyboardButton("🏠 Main Menu", callback_data="main_menu")
+                ]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(
+                history_text,
+                parse_mode=ParseMode.HTML,
+                reply_markup=reply_markup
+            )
+            
+        except Exception as e:
+            logger.error(f"Error in detailed history callback: {str(e)}")
+            await query.edit_message_text(
+                f"❌ Error getting detailed history:\n{str(e)}"
+            )
     
     # ============ ADMIN CALLBACK HANDLERS ============
     
