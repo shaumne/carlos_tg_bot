@@ -1320,13 +1320,25 @@ History will appear here after you place trades.
         # First check if settings handler wants to handle this message
         try:
             # Check if user is in settings conversation
+            logger.info(f"Message received from user {user_id}: '{update.message.text}'")
+            
             if user_id in self.settings_handlers.user_sessions:
                 session = self.settings_handlers.user_sessions[user_id]
+                logger.info(f"User {user_id} is in settings session with state: {session.get('state')}")
+                logger.info(f"WAITING_FOR_SETTING_VALUE constant = {WAITING_FOR_SETTING_VALUE}")
+                
                 if session.get('state') == WAITING_FOR_SETTING_VALUE:
+                    logger.info(f"Forwarding message to settings handler for user {user_id}")
                     await self.settings_handlers.handle_setting_value_input(update, context)
                     return
+                else:
+                    logger.warning(f"User {user_id} in settings session but wrong state: {session.get('state')} != {WAITING_FOR_SETTING_VALUE}")
+            else:
+                logger.info(f"User {user_id} not in settings session")
         except Exception as e:
             logger.error(f"Error handling settings input: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
         
         # Check if user is in a conversation
         if user_id not in self.user_sessions:

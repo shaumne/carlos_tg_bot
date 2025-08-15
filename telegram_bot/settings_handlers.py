@@ -14,9 +14,12 @@ from telegram.constants import ParseMode
 
 logger = logging.getLogger(__name__)
 
-# Conversation states for settings
-(WAITING_FOR_SETTING_VALUE, WAITING_FOR_CONFIRMATION, 
- WAITING_FOR_CATEGORY_SELECTION, WAITING_FOR_SETTING_SELECTION) = range(4)
+# Import conversation states from bot_core to avoid conflicts
+# These constants MUST match bot_core.py exactly
+WAITING_FOR_COIN_SYMBOL = 0
+WAITING_FOR_CONFIRMATION = 1  
+WAITING_FOR_TRADE_AMOUNT = 2
+WAITING_FOR_SETTING_VALUE = 3
 
 class SettingsHandlers:
     """Telegram bot settings command handlers"""
@@ -247,12 +250,17 @@ Enter new value or type 'cancel' to cancel.
             user_id = update.effective_user.id
             text = update.message.text.strip()
             
+            logger.info(f"handle_setting_value_input called for user {user_id} with text: '{text}'")
+            
             if user_id not in self.user_sessions:
+                logger.warning(f"User {user_id} not in user_sessions")
                 return
             
             session = self.user_sessions[user_id]
+            logger.info(f"User session: {session}")
             
             if session.get('state') != WAITING_FOR_SETTING_VALUE:
+                logger.warning(f"Wrong state: {session.get('state')} != {WAITING_FOR_SETTING_VALUE}")
                 return
             
             category = session['category']
