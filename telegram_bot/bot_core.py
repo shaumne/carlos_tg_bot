@@ -2050,13 +2050,17 @@ Will appear here after trading.
                 
                 # Get current balance of the base currency
                 base_currency = exchange_symbol.split('_')[0] if '_' in exchange_symbol else exchange_symbol.replace('USDT', '')
-                balance = self.exchange_api.get_balance(base_currency)
+                balance = self.exchange_api.get_coin_balance(base_currency)
+                
+                logger.info(f"Balance for {base_currency}: {balance}")
                 
                 if balance and balance > 0:
-                    logger.info(f"Executing SELL order for {exchange_symbol}, balance: {balance}")
+                    # Calculate quantity to sell (99% of balance to avoid precision errors)
+                    quantity_to_sell = balance * 0.99
+                    logger.info(f"Executing SELL order for {exchange_symbol}, balance: {balance}, quantity_to_sell: {quantity_to_sell}")
                     
-                    # Execute sell order
-                    order_id = self.exchange_api.sell_coin(exchange_symbol, balance * 0.99)  # Use 99% to avoid precision errors
+                    # Execute sell order with explicit quantity
+                    order_id = self.exchange_api.sell_coin(exchange_symbol, quantity_to_sell)
                     
                     if order_id:
                         logger.info(f"✅ SELL order placed for {exchange_symbol} with ID: {order_id}")

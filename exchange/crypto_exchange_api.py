@@ -447,7 +447,7 @@ class CryptoExchangeAPI:
         )
         
         formatted = str(rounded_quantity)
-        logger.debug(f"Formatted quantity for {symbol}: {quantity} -> {formatted}")
+        logger.info(f"Formatted quantity for {symbol}: {quantity} -> {formatted} (decimal_places: {decimal_places})")
         
         return formatted
     
@@ -637,6 +637,7 @@ class CryptoExchangeAPI:
             str: Order ID if successful, None if failed
         """
         try:
+            logger.info(f"sell_coin called with instrument_name={instrument_name}, quantity={quantity}")
             # Validate and format instrument name
             formatted_instrument = self._format_instrument_name(instrument_name)
             if not formatted_instrument:
@@ -668,6 +669,11 @@ class CryptoExchangeAPI:
             
             formatted_quantity = self.format_quantity(formatted_instrument, quantity)
             logger.info(f"Formatted quantity for {formatted_instrument}: {formatted_quantity}")
+            
+            # Validate quantity is not zero or empty
+            if not formatted_quantity or formatted_quantity == "0" or float(formatted_quantity) <= 0:
+                logger.error(f"Invalid formatted quantity: {formatted_quantity} (original: {quantity})")
+                return None
             
             # Create sell order params
             params = {
