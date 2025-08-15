@@ -499,6 +499,189 @@ class CryptoExchangeAPI:
                 error_message=f"Exception: {str(e)}"
             )
     
+    def buy_coin(self, instrument_name: str, amount_usd: float = None) -> Optional[str]:
+        """
+        Buy coin with specified USD amount using market order
+        
+        Args:
+            instrument_name (str): Trading pair (e.g., BTC_USDT)
+            amount_usd (float): Amount in USDT to spend
+            
+        Returns:
+            str: Order ID if successful, None if failed
+        """
+        try:
+            if amount_usd is None:
+                amount_usd = self.trade_amount
+                
+            logger.info(f"Creating market buy order for {instrument_name} with ${amount_usd}")
+            
+            # Check balance first
+            if not self.has_sufficient_balance("USDT", amount_usd * 1.05):  # 5% buffer for fees
+                logger.error(f"Insufficient balance for ${amount_usd} trade")
+                return None
+            
+            # Create order params - ensure all numbers are strings
+            params = {
+                "instrument_name": instrument_name,
+                "side": "BUY",
+                "type": "MARKET",
+                "notional": str(float(amount_usd))  # Convert to string as required
+            }
+            
+            # Send order request
+            response = self.send_request("private/create-order", params)
+            
+            # Check response
+            if response.get("code") == 0:
+                order_id = None
+                
+                # Try to extract order ID
+                if "result" in response and "order_id" in response.get("result", {}):
+                    order_id = response.get("result", {}).get("order_id")
+                
+                if order_id:
+                    logger.info(f"✅ Order successfully created! Order ID: {order_id}")
+                    return order_id
+                else:
+                    logger.info(f"Order successful, but couldn't find order ID in response")
+                    return "success_no_id"  # Return something truthy to indicate success
+            else:
+                error_code = response.get("code")
+                error_msg = response.get("message", response.get("msg", "Unknown error"))
+                logger.error(f"❌ Failed to create order. Error {error_code}: {error_msg}")
+                logger.error(f"Full response: {json.dumps(response, indent=2)}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error in buy_coin: {str(e)}")
+            return None
+    
+    def has_sufficient_balance(self, currency: str = "USDT", required_amount: float = None) -> bool:
+        """
+        Check if there is sufficient balance for trading
+        
+        Args:
+            currency (str): Currency to check (default: USDT)
+            required_amount (float): Required amount (default: trade_amount * 1.05)
+            
+        Returns:
+            bool: True if sufficient balance, False otherwise
+        """
+        try:
+            if required_amount is None:
+                required_amount = self.trade_amount * 1.05  # 5% buffer for fees
+                
+            balance = self.get_balance(currency)
+            sufficient = balance >= required_amount
+            
+            if sufficient:
+                logger.info(f"✅ Sufficient balance: {balance} {currency} (required: {required_amount})")
+            else:
+                logger.warning(f"❌ Insufficient balance: {balance} {currency} (required: {required_amount})")
+                
+            return sufficient
+            
+        except Exception as e:
+            logger.error(f"Error checking balance: {str(e)}")
+            return False
+    
+    def get_coin_balance(self, currency: str) -> float:
+        """
+        Get coin balance for a specific currency
+        
+        Args:
+            currency (str): Currency symbol (e.g., BTC, ETH)
+            
+        Returns:
+            float: Available balance, 0 if not found
+        """
+        try:
+            logger.info(f"Getting {currency} balance")
+            
+            # Get account summary
+            account_summary = self.get_account_summary()
+            if not account_summary or "accounts" not in account_summary:
+                logger.error("Failed to get account summary")
+                return 0.0
+                
+            # Find the currency in accounts
+            for account in account_summary["accounts"]:
+                if account.get("currency") == currency:
+                    available = float(account.get("available", 0))
+                    logger.info(f"Available {currency} balance: {available}")
+                    return available
+                    
+            logger.warning(f"Currency {currency} not found in account")
+            return 0.0
+            
+        except Exception as e:
+            logger.error(f"Error getting balance for {currency}: {str(e)}")
+            return 0.0
+    
+    def sell_coin(self, instrument_name: str, quantity: float = None) -> Optional[str]:
+        """
+        Sell coin with specified quantity using market order
+        
+        Args:
+            instrument_name (str): Trading pair (e.g., BTC_USDT)
+            quantity (float): Quantity to sell (if None, sell all available)
+            
+        Returns:
+            str: Order ID if successful, None if failed
+        """
+        try:
+            # Extract base currency from instrument_name (e.g. BTC from BTC_USDT)
+            base_currency = instrument_name.split('_')[0]
+            
+            # If quantity is not provided, get available balance
+            if quantity is None:
+                logger.info(f"No quantity provided, getting available balance for {base_currency}")
+                available_balance = self.get_coin_balance(base_currency)
+                
+                if not available_balance or available_balance <= 0:
+                    logger.error(f"No available balance found for {base_currency}")
+                    return None
+                
+                # Use 99% of available balance to avoid precision issues
+                quantity = available_balance * 0.99
+                logger.info(f"Using 99% of available balance: {quantity} {base_currency}")
+            
+            formatted_quantity = self.format_quantity(instrument_name, quantity)
+            logger.info(f"Formatted quantity for {instrument_name}: {formatted_quantity}")
+            
+            # Create sell order params
+            params = {
+                "instrument_name": instrument_name,
+                "side": "SELL",
+                "type": "MARKET",
+                "quantity": formatted_quantity
+            }
+            
+            logger.info(f"Placing market sell order: SELL {formatted_quantity} {instrument_name}")
+            
+            # Send order request
+            response = self.send_request("private/create-order", params)
+            
+            # Check response
+            if response.get("code") == 0:
+                order_id = response.get("result", {}).get("order_id")
+                if order_id:
+                    logger.info(f"✅ Sell order created successfully: {order_id}")
+                    return order_id
+                else:
+                    logger.info(f"Sell order successful, but couldn't find order ID")
+                    return "success_no_id"
+            else:
+                error_code = response.get("code")
+                error_msg = response.get("message", response.get("msg", "Unknown error"))
+                logger.error(f"❌ Failed to create sell order. Error {error_code}: {error_msg}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error in sell_coin: {str(e)}")
+            return None
+    
     def create_sell_order(self, instrument_name: str, quantity: float = None) -> OrderResult:
         """Market sell order"""
         try:

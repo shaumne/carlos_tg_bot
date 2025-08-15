@@ -276,7 +276,7 @@ class DynamicSettingsManager:
                     
             except Exception as e:
                 logger.error(f"Error setting {category}.{key}: {str(e)}")
-                return False
+            return False
     
     def _convert_value_type(self, value: Any, category: str, key: str) -> Any:
         """Convert value to proper type based on JSON configuration"""
