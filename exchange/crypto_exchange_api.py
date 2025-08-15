@@ -89,7 +89,9 @@ class CryptoExchangeAPI:
         if not self.config.api_key or not self.config.api_secret:
             raise ValueError("API key and secret are required")
         
-        logger.info(f"CryptoExchangeAPI initialized - Trading: {self.trading_base_url}, Account: {self.account_base_url}")
+        # Trade amount from trading config
+        self.trade_amount = self.trading_config.trade_amount
+        logger.info(f"CryptoExchangeAPI initialized - Trading: {self.trading_base_url}, Account: {self.account_base_url}, Trade Amount: {self.trade_amount}")
         
         # Test authentication
         if self._test_authentication():
@@ -97,6 +99,14 @@ class CryptoExchangeAPI:
         else:
             logger.error("❌ Exchange API authentication failed")
             raise ValueError("Could not authenticate with Crypto.com Exchange API")
+    
+    def update_trade_amount(self, new_amount: float):
+        """Update trade amount for dynamic settings"""
+        old_amount = self.trade_amount
+        self.trade_amount = float(new_amount)
+        # Also update in trading config
+        self.trading_config.trade_amount = float(new_amount)
+        logger.info(f"Trade amount updated: {old_amount} -> {self.trade_amount}")
     
     def _wait_for_rate_limit(self):
         """Rate limiting kontrolü"""

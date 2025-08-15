@@ -379,6 +379,8 @@ class CryptoExchangeAPI:
         self.trade_amount = float(os.getenv("TRADE_AMOUNT", "10"))  # Default trade amount in USDT
         self.min_balance_required = self.trade_amount * 1.05  # 5% buffer for fees
         
+        logger.info(f"CryptoExchangeAPI initialized with trade_amount: {self.trade_amount}")
+        
         if not self.api_key or not self.api_secret:
             logger.error("API key or secret not found in environment variables")
             raise ValueError("CRYPTO_API_KEY and CRYPTO_API_SECRET environment variables are required")
@@ -391,6 +393,13 @@ class CryptoExchangeAPI:
         else:
             logger.error("Authentication failed")
             raise ValueError("Could not authenticate with Crypto.com Exchange API")
+    
+    def update_trade_amount(self, new_amount: float):
+        """Update trade amount and recalculate minimum balance"""
+        old_amount = self.trade_amount
+        self.trade_amount = float(new_amount)
+        self.min_balance_required = self.trade_amount * 1.05  # 5% buffer for fees
+        logger.info(f"Trade amount updated: {old_amount} -> {self.trade_amount} (min_balance: {self.min_balance_required})")
     
     def params_to_str(self, obj, level=0):
         """

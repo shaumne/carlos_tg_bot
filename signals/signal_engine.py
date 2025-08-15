@@ -275,9 +275,22 @@ class MarketDataProvider:
             if not self.exchange:
                 return None
             
-            # Symbol formatını düzelt (BTC_USDT -> BTC/USDT)
-            formatted_symbol = symbol.replace('_', '/')
+            # Symbol formatını düzelt (BTC -> BTCUSDT -> BTC/USDT)
+            # Eğer symbol sadece coin ismi ise USDT ekle
+            if '/' not in symbol and '_' not in symbol:
+                symbol = f"{symbol}USDT"
             
+            # Symbol formatını düzelt (BTC_USDT veya BTCUSDT -> BTC/USDT)
+            if '_' in symbol:
+                formatted_symbol = symbol.replace('_', '/')
+            elif 'USDT' in symbol and symbol != 'USDT':
+                # BTCUSDT -> BTC/USDT
+                base = symbol.replace('USDT', '')
+                formatted_symbol = f"{base}/USDT"
+            else:
+                formatted_symbol = symbol
+            
+            logger.debug(f"Fetching OHLCV for symbol: {symbol} -> formatted: {formatted_symbol}")
             ohlcv = self.exchange.fetch_ohlcv(formatted_symbol, timeframe, limit=limit)
             return ohlcv
             
@@ -291,7 +304,22 @@ class MarketDataProvider:
             if not self.exchange:
                 return None
             
-            formatted_symbol = symbol.replace('_', '/')
+            # Symbol formatını düzelt (BTC -> BTCUSDT -> BTC/USDT)
+            # Eğer symbol sadece coin ismi ise USDT ekle
+            if '/' not in symbol and '_' not in symbol:
+                symbol = f"{symbol}USDT"
+            
+            # Symbol formatını düzelt (BTC_USDT veya BTCUSDT -> BTC/USDT)
+            if '_' in symbol:
+                formatted_symbol = symbol.replace('_', '/')
+            elif 'USDT' in symbol and symbol != 'USDT':
+                # BTCUSDT -> BTC/USDT
+                base = symbol.replace('USDT', '')
+                formatted_symbol = f"{base}/USDT"
+            else:
+                formatted_symbol = symbol
+            
+            logger.debug(f"Fetching price for symbol: {symbol} -> formatted: {formatted_symbol}")
             ticker = self.exchange.fetch_ticker(formatted_symbol)
             
             return float(ticker['last'])
@@ -306,7 +334,22 @@ class MarketDataProvider:
             if not self.exchange:
                 return None
             
-            formatted_symbol = symbol.replace('_', '/')
+            # Symbol formatını düzelt (BTC -> BTCUSDT -> BTC/USDT)
+            # Eğer symbol sadece coin ismi ise USDT ekle
+            if '/' not in symbol and '_' not in symbol:
+                symbol = f"{symbol}USDT"
+            
+            # Symbol formatını düzelt (BTC_USDT veya BTCUSDT -> BTC/USDT)
+            if '_' in symbol:
+                formatted_symbol = symbol.replace('_', '/')
+            elif 'USDT' in symbol and symbol != 'USDT':
+                # BTCUSDT -> BTC/USDT
+                base = symbol.replace('USDT', '')
+                formatted_symbol = f"{base}/USDT"
+            else:
+                formatted_symbol = symbol
+            
+            logger.debug(f"Fetching market data for symbol: {symbol} -> formatted: {formatted_symbol}")
             ticker = self.exchange.fetch_ticker(formatted_symbol)
             
             market_data = MarketData(

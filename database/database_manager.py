@@ -378,6 +378,14 @@ class DatabaseManager:
             logger.error(f"Failed to add signal: {str(e)}")
             return 0
     
+    def save_signal(self, symbol: str, formatted_symbol: str, signal_type: str, price: float,
+                   confidence: float = 0.5, rsi_value: float = None, atr_value: float = None,
+                   ma_signal: str = None, ema_signal: str = None, 
+                   indicators: Dict = None, notes: str = None) -> int:
+        """Alias for add_signal method for compatibility"""
+        return self.add_signal(symbol, formatted_symbol, signal_type, price, confidence, 
+                              rsi_value, atr_value, ma_signal, ema_signal, indicators, notes)
+    
     def get_recent_signals(self, symbol: str = None, limit: int = 50, 
                           signal_type: str = None) -> List[Dict]:
         """Son sinyalleri getir"""

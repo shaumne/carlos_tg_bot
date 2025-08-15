@@ -460,7 +460,9 @@ class DynamicSettingsManager:
             # Trading settings
             trading_amount = self.get_setting('trading', 'trade_amount')
             if trading_amount is not None:
+                old_value = getattr(config_manager.trading, 'trade_amount', None)
                 config_manager.trading.trade_amount = float(trading_amount)
+                logger.info(f"Updated trade_amount: {old_value} -> {trading_amount}")
                 updated_count += 1
             
             max_positions = self.get_setting('trading', 'max_positions')

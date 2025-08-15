@@ -326,8 +326,24 @@ Enter new value or type 'cancel' to cancel.
                 
                 # Apply runtime settings if no restart required
                 if not restart_required:
-                    self.settings_manager.apply_runtime_settings(self.bot.config)
-                    logger.info(f"Applied runtime setting change: {category}.{key} = {new_value}")
+                    logger.info(f"Applying runtime settings for {category}.{key} = {new_value}")
+                    success_apply = self.settings_manager.apply_runtime_settings(self.bot.config)
+                    if success_apply:
+                        logger.info(f"✅ Successfully applied runtime setting change: {category}.{key} = {new_value}")
+                    else:
+                        logger.warning(f"⚠️ Failed to apply runtime setting change: {category}.{key} = {new_value}")
+                        
+                    # Force refresh configuration in trade executor and exchange API if exists
+                    if hasattr(self.bot, 'exchange_api') and self.bot.exchange_api:
+                        try:
+                            # Update trade amount in exchange API
+                            if category == 'trading' and key == 'trade_amount':
+                                self.bot.exchange_api.update_trade_amount(float(new_value))
+                                logger.info(f"Updated exchange API trade_amount to {new_value}")
+                        except Exception as e:
+                            logger.error(f"Error updating exchange API config: {str(e)}")
+                else:
+                    logger.info(f"Setting {category}.{key} requires restart to take effect")
             else:
                 await update.message.reply_text(
                     f"❌ Could not save setting! Please try again.",
