@@ -179,11 +179,11 @@ class TelegramTradingBot:
         return user_id in self.telegram_config.admin_users
     
     async def _send_unauthorized_message(self, update: Update):
-        """Yetkisiz erişim mesajı"""
+        """Unauthorized access message"""
         await update.message.reply_text(
-            "❌ Yetkisiz erişim!\n\n"
-            "Bu bot'u kullanma yetkiniz bulunmamaktadır.\n"
-            "Erişim için yönetici ile iletişime geçin.",
+            "❌ Unauthorized Access!\n\n"
+            "You don't have permission to use this bot.\n"
+            "Please contact the administrator for access.",
             parse_mode=ParseMode.MARKDOWN
         )
     
@@ -208,44 +208,44 @@ class TelegramTradingBot:
             return
         
         welcome_text = f"""
-🤖 **Telegram Trading Bot'a Hoş Geldiniz!**
+🤖 **Welcome to Telegram Trading Bot!**
 
-Merhaba {user.first_name}! 👋
+Hello {user.first_name}! 👋
 
-Bu bot kripto para trading işlemlerinizi Telegram üzerinden yönetmenizi sağlar.
+This bot allows you to manage your cryptocurrency trading operations through Telegram.
 
-**🚀 Ana Özellikler:**
-• 📊 Teknik analiz ve sinyal üretimi
-• 💰 Otomatik alım-satım işlemleri  
-• 📈 Portföy takibi ve raporlama
-• 🔔 Gerçek zamanlı bildirimler
-• ⚙️ Esnek ayar yönetimi
+**🚀 Key Features:**
+• 📊 Technical analysis and signal generation
+• 💰 Automated buy/sell operations  
+• 📈 Portfolio tracking and reporting
+• 🔔 Real-time notifications
+• ⚙️ Flexible settings management
 
-**📋 Başlangıç Komutları:**
-• `/help` - Tüm komutları göster
-• `/status` - Bot durumunu kontrol et
-• `/portfolio` - Portföyünüzü görüntüleyin
-• `/watchlist` - Takip edilen coinleri göster
-• `/settings` - Bot ayarlarını yapılandır
+**📋 Getting Started Commands:**
+• `/help` - Show all commands
+• `/status` - Check bot status
+• `/portfolio` - View your portfolio
+• `/watchlist` - Show tracked coins
+• `/settings` - Configure bot settings
 
-**⚠️ Önemli Uyarı:**
-Bu bot gerçek para ile işlem yapar. Tüm işlemler kendi sorumluluğunuzdadır.
+**⚠️ Important Warning:**
+This bot trades with real money. All trades are at your own responsibility.
 
-Başlamak için herhangi bir komutu kullanabilirsiniz! 🎯
+Use any command to get started! 🎯
         """
         
         # Inline keyboard with quick actions
         keyboard = [
             [
-                InlineKeyboardButton("📊 Durum", callback_data="status"),
-                InlineKeyboardButton("💰 Portföy", callback_data="portfolio")
+                InlineKeyboardButton("📊 Status", callback_data="status"),
+                InlineKeyboardButton("💰 Portfolio", callback_data="portfolio")
             ],
             [
-                InlineKeyboardButton("📈 Sinyaller", callback_data="signals"),
-                InlineKeyboardButton("⚙️ Ayarlar", callback_data="settings")
+                InlineKeyboardButton("📈 Signals", callback_data="signals"),
+                InlineKeyboardButton("⚙️ Settings", callback_data="settings")
             ],
             [
-                InlineKeyboardButton("❓ Yardım", callback_data="help")
+                InlineKeyboardButton("❓ Help", callback_data="help")
             ]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -267,40 +267,40 @@ Başlamak için herhangi bir komutu kullanabilirsiniz! 🎯
             return
         
         help_text = """
-📚 **Telegram Trading Bot - Komut Rehberi**
+📚 **Telegram Trading Bot - Command Guide**
 
-**📊 Bilgi Komutları:**
-• `/status` - Bot durumu ve sistem bilgileri
-• `/portfolio` - Aktif pozisyonlar ve P&L
-• `/balance` - Exchange bakiye bilgileri
-• `/watchlist` - Takip edilen coin listesi
-• `/signals` - Son trading sinyalleri
-• `/history` - İşlem geçmişi
-• `/health` - Sistem sağlık kontrolü
+**📊 Information Commands:**
+• `/status` - Bot status and system information
+• `/portfolio` - Active positions and P&L
+• `/balance` - Exchange balance information
+• `/watchlist` - Tracked coin list
+• `/signals` - Recent trading signals
+• `/history` - Trade history
+• `/health` - System health check
 
-**🔧 Yönetim Komutları:**
-• `/add_coin [SYMBOL]` - Coin takip listesine ekle
-• `/remove_coin [SYMBOL]` - Coin listesinden çıkar
-• `/analyze [SYMBOL]` - Belirli coin'i analiz et
-• `/settings` - Bot ayarlarını görüntüle/düzenle
+**🔧 Management Commands:**
+• `/add_coin [SYMBOL]` - Add coin to watchlist
+• `/remove_coin [SYMBOL]` - Remove coin from list
+• `/analyze [SYMBOL]` - Analyze specific coin
+• `/settings` - View/edit bot settings
 
-**⚙️ Ayarlar:**
-• Trading miktarı, risk parametreleri
-• Bildirim tercihleri
-• Otomatik trading açma/kapama
+**⚙️ Settings:**
+• Trade amount, risk parameters
+• Notification preferences
+• Auto trading enable/disable
 
-**🔐 Admin Komutları:**
-• `/admin` - Admin paneli
-• `/logs` - Sistem logları
+**🔐 Admin Commands:**
+• `/admin` - Admin panel
+• `/logs` - System logs
 • `/backup` - Database backup
 
-**💡 İpuçları:**
-• Komutları tek başına veya parametre ile kullanabilirsiniz
-• Örnek: `/analyze BTC` veya sadece `/analyze`
-• Interactive menüler için butonları kullanın
+**💡 Tips:**
+• Commands can be used alone or with parameters
+• Example: `/analyze BTC` or just `/analyze`
+• Use buttons for interactive menus
 
-**⚠️ Risk Uyarısı:**
-Bu bot gerçek para ile işlem yapar. Her zaman dikkatli olun!
+**⚠️ Risk Warning:**
+This bot trades with real money. Always be careful!
         """
         
         await update.message.reply_text(help_text, parse_mode=ParseMode.MARKDOWN)
@@ -319,9 +319,9 @@ Bu bot gerçek para ile işlem yapar. Her zaman dikkatli olun!
             # Exchange connection test
             try:
                 balance = self.exchange_api.get_balance("USDT")
-                exchange_status = f"✅ Bağlı (USDT: {balance:.2f})"
+                exchange_status = f"✅ Connected (USDT: {balance:.2f})"
             except Exception as e:
-                exchange_status = f"❌ Bağlantı hatası: {str(e)[:50]}..."
+                exchange_status = f"❌ Connection error: {str(e)[:50]}..."
             
             # Active positions
             active_positions = self.db.get_active_positions()
@@ -330,42 +330,42 @@ Bu bot gerçek para ile işlem yapar. Her zaman dikkatli olun!
             recent_signals = self.db.get_recent_signals(limit=5)
             
             status_text = f"""
-📊 **Bot Durum Raporu**
+📊 **Bot Status Report**
 
-**🤖 Sistem Durumu:**
-• Bot: ✅ Aktif
+**🤖 System Status:**
+• Bot: ✅ Active
 • Exchange: {exchange_status}
-• Database: ✅ Bağlı ({db_stats.get('db_size_mb', 0)} MB)
-• Signal Engine: ✅ Aktif
+• Database: ✅ Connected ({db_stats.get('db_size_mb', 0)} MB)
+• Signal Engine: ✅ Active
 
-**📈 Trading Durumu:**
-• Aktif Pozisyonlar: {len(active_positions)}
-• Takip Edilen Coinler: {db_stats.get('watched_coins_count', 0)}
-• Son 24h Sinyaller: {db_stats.get('signals_24h', 0)}
-• Son 24h İşlemler: {db_stats.get('trades_24h', 0)}
+**📈 Trading Status:**
+• Active Positions: {len(active_positions)}
+• Tracked Coins: {db_stats.get('watched_coins_count', 0)}
+• Last 24h Signals: {db_stats.get('signals_24h', 0)}
+• Last 24h Trades: {db_stats.get('trades_24h', 0)}
 
-**⚙️ Ayarlar:**
-• Trading Miktarı: {config_summary['trading']['trade_amount']} USDT
-• Maks Pozisyon: {config_summary['trading']['max_positions']}
-• Otomatik Trading: {'✅' if config_summary['trading']['auto_trading_enabled'] else '❌'}
+**⚙️ Settings:**
+• Trade Amount: {config_summary['trading']['trade_amount']} USDT
+• Max Positions: {config_summary['trading']['max_positions']}
+• Auto Trading: {'✅' if config_summary['trading']['auto_trading_enabled'] else '❌'}
 • Paper Trading: {'✅' if config_summary['trading']['paper_trading_enabled'] else '❌'}
 
-**🔔 Bildirimler:**
+**🔔 Notifications:**
 • Signals: {'✅' if config_summary['monitoring']['notifications_enabled'] else '❌'}
 • Log Level: {config_summary['monitoring']['log_level']}
 
-**⏰ Son Güncelleme:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+**⏰ Last Update:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             """
             
             # Quick action buttons
             keyboard = [
                 [
-                    InlineKeyboardButton("🔄 Yenile", callback_data="status"),
-                    InlineKeyboardButton("💰 Portföy", callback_data="portfolio")
+                    InlineKeyboardButton("🔄 Refresh", callback_data="status"),
+                    InlineKeyboardButton("💰 Portfolio", callback_data="portfolio")
                 ],
                 [
-                    InlineKeyboardButton("📈 Sinyaller", callback_data="signals"),
-                    InlineKeyboardButton("⚙️ Ayarlar", callback_data="settings")
+                    InlineKeyboardButton("📈 Signals", callback_data="signals"),
+                    InlineKeyboardButton("⚙️ Settings", callback_data="settings")
                 ]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
@@ -379,7 +379,7 @@ Bu bot gerçek para ile işlem yapar. Her zaman dikkatli olun!
         except Exception as e:
             logger.error(f"Error in status command: {str(e)}")
             await update.message.reply_text(
-                f"❌ Durum bilgisi alınırken hata oluştu:\n{str(e)}",
+                f"❌ Error getting status information:\n{str(e)}",
                 parse_mode=ParseMode.MARKDOWN
             )
     
@@ -1370,52 +1370,92 @@ Sinyal üretmek için:
     
     async def _handle_status_callback(self, query):
         """Handle status callback"""
-        # Reuse the status command logic
-        update = Update(update_id=0, message=query.message)
-        update.effective_user = query.from_user
-        await self._cmd_status(update, None)
+        # Create a mock update for reusing status command logic
+        class MockUpdate:
+            def __init__(self, query):
+                self.effective_user = query.from_user
+                self.message = query.message
+                self.callback_query = query
+        
+        mock_update = MockUpdate(query)
+        await self._cmd_status(mock_update, None)
     
     async def _handle_portfolio_callback(self, query):
         """Handle portfolio callback"""
-        update = Update(update_id=0, message=query.message)
-        update.effective_user = query.from_user
-        await self._cmd_portfolio(update, None)
+        class MockUpdate:
+            def __init__(self, query):
+                self.effective_user = query.from_user
+                self.message = query.message
+                self.callback_query = query
+        
+        mock_update = MockUpdate(query)
+        await self._cmd_portfolio(mock_update, None)
     
     async def _handle_balance_callback(self, query):
         """Handle balance callback"""
-        update = Update(update_id=0, message=query.message)
-        update.effective_user = query.from_user
-        await self._cmd_balance(update, None)
+        class MockUpdate:
+            def __init__(self, query):
+                self.effective_user = query.from_user
+                self.message = query.message
+                self.callback_query = query
+        
+        mock_update = MockUpdate(query)
+        await self._cmd_balance(mock_update, None)
     
     async def _handle_watchlist_callback(self, query):
         """Handle watchlist callback"""
-        update = Update(update_id=0, message=query.message)
-        update.effective_user = query.from_user
-        await self._cmd_watchlist(update, None)
+        class MockUpdate:
+            def __init__(self, query):
+                self.effective_user = query.from_user
+                self.message = query.message
+                self.callback_query = query
+        
+        mock_update = MockUpdate(query)
+        await self._cmd_watchlist(mock_update, None)
     
     async def _handle_signals_callback(self, query):
         """Handle signals callback"""
-        update = Update(update_id=0, message=query.message)
-        update.effective_user = query.from_user
-        await self._cmd_signals(update, None)
+        class MockUpdate:
+            def __init__(self, query):
+                self.effective_user = query.from_user
+                self.message = query.message
+                self.callback_query = query
+        
+        mock_update = MockUpdate(query)
+        await self._cmd_signals(mock_update, None)
     
     async def _handle_history_callback(self, query):
         """Handle history callback"""
-        update = Update(update_id=0, message=query.message)
-        update.effective_user = query.from_user
-        await self._cmd_history(update, None)
+        class MockUpdate:
+            def __init__(self, query):
+                self.effective_user = query.from_user
+                self.message = query.message
+                self.callback_query = query
+        
+        mock_update = MockUpdate(query)
+        await self._cmd_history(mock_update, None)
     
     async def _handle_settings_callback(self, query):
         """Handle settings callback"""
-        update = Update(update_id=0, message=query.message)
-        update.effective_user = query.from_user
-        await self._cmd_settings(update, None)
+        class MockUpdate:
+            def __init__(self, query):
+                self.effective_user = query.from_user
+                self.message = query.message
+                self.callback_query = query
+        
+        mock_update = MockUpdate(query)
+        await self._cmd_settings(mock_update, None)
     
     async def _handle_help_callback(self, query):
         """Handle help callback"""
-        update = Update(update_id=0, message=query.message)
-        update.effective_user = query.from_user
-        await self._cmd_help(update, None)
+        class MockUpdate:
+            def __init__(self, query):
+                self.effective_user = query.from_user
+                self.message = query.message
+                self.callback_query = query
+        
+        mock_update = MockUpdate(query)
+        await self._cmd_help(mock_update, None)
     
     # ============ ERROR HANDLER ============
     

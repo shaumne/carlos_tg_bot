@@ -32,36 +32,36 @@ class SettingsHandlers:
         """Ana settings menüsü"""
         try:
             settings_text = """
-⚙️ **Bot Ayarları**
+⚙️ **Bot Settings**
 
-Aşağıdaki kategorilerden birini seçerek ayarları görüntüleyip değiştirebilirsiniz:
+Select a category below to view and modify settings:
 
-🔧 **Mevcut Kategoriler:**
-• 💰 **Trading** - İşlem miktarı, risk ayarları
-• 📊 **Teknik Analiz** - RSI, ATR parametreleri  
-• 🔔 **Bildirimler** - Hangi olaylar bildirilsin
-• ⚙️ **Sistem** - Genel sistem ayarları
+🔧 **Available Categories:**
+• 💰 **Trading** - Trade amount, risk settings
+• 📊 **Technical Analysis** - RSI, ATR parameters  
+• 🔔 **Notifications** - Which events to notify
+• ⚙️ **System** - General system settings
 
-⚠️ **Not:** Bazı ayarlar değişiklik sonrası yeniden başlatma gerektirebilir.
+⚠️ **Note:** Some settings may require restart after changes.
             """
             
             # Category selection keyboard
             keyboard = [
                 [
                     InlineKeyboardButton("💰 Trading", callback_data="settings_category_trading"),
-                    InlineKeyboardButton("📊 Teknik", callback_data="settings_category_technical")
+                    InlineKeyboardButton("📊 Technical", callback_data="settings_category_technical")
                 ],
                 [
-                    InlineKeyboardButton("🔔 Bildirimler", callback_data="settings_category_notifications"),
-                    InlineKeyboardButton("⚙️ Sistem", callback_data="settings_category_system")
+                    InlineKeyboardButton("🔔 Notifications", callback_data="settings_category_notifications"),
+                    InlineKeyboardButton("⚙️ System", callback_data="settings_category_system")
                 ],
                 [
                     InlineKeyboardButton("📁 Export", callback_data="settings_export"),
                     InlineKeyboardButton("📥 Import", callback_data="settings_import")
                 ],
                 [
-                    InlineKeyboardButton("🔄 Varsayılana Sıfırla", callback_data="settings_reset_all"),
-                    InlineKeyboardButton("🏠 Ana Menü", callback_data="main_menu")
+                    InlineKeyboardButton("🔄 Reset to Default", callback_data="settings_reset_all"),
+                    InlineKeyboardButton("🏠 Main Menu", callback_data="main_menu")
                 ]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
@@ -78,18 +78,18 @@ Aşağıdaki kategorilerden birini seçerek ayarları görüntüleyip değiştir
             category_settings = self.settings_manager.get_category_settings(category)
             
             if not category_settings:
-                await self._send_error_message(update_or_query, f"'{category}' kategorisi bulunamadı!")
+                await self._send_error_message(update_or_query, f"Category '{category}' not found!")
                 return
             
             # Category title mapping
             category_titles = {
-                'trading': '💰 Trading Ayarları',
-                'technical': '📊 Teknik Analiz Ayarları', 
-                'notifications': '🔔 Bildirim Ayarları',
-                'system': '⚙️ Sistem Ayarları'
+                'trading': '💰 Trading Settings',
+                'technical': '📊 Technical Analysis Settings', 
+                'notifications': '🔔 Notification Settings',
+                'system': '⚙️ System Settings'
             }
             
-            title = category_titles.get(category, f"{category.title()} Ayarları")
+            title = category_titles.get(category, f"{category.title()} Settings")
             settings_text = f"**{title}**\n\n"
             
             # Show current settings
@@ -101,7 +101,7 @@ Aşağıdaki kategorilerden birini seçerek ayarları görüntüleyip değiştir
                 
                 # Format value display
                 if setting_type == 'bool':
-                    value_display = "✅ Aktif" if value else "❌ Pasif"
+                    value_display = "✅ Active" if value else "❌ Inactive"
                 elif setting_type in ['int', 'float']:
                     min_val = setting_info.get('min_value')
                     max_val = setting_info.get('max_value')
@@ -113,10 +113,10 @@ Aşağıdaki kategorilerden birini seçerek ayarları görüntüleyip değiştir
                 restart_indicator = " 🔄" if restart_required else ""
                 
                 settings_text += f"• **{description}**{restart_indicator}\n"
-                settings_text += f"  Değer: `{value_display}`\n\n"
+                settings_text += f"  Value: `{value_display}`\n\n"
             
             if any(s.get('restart_required', False) for s in category_settings.values()):
-                settings_text += "\n🔄 = Değişiklik sonrası yeniden başlatma gerektirir"
+                settings_text += "\n🔄 = Requires restart after change"
             
             # Create keyboard for individual setting changes
             keyboard = []
@@ -140,12 +140,12 @@ Aşağıdaki kategorilerden birini seçerek ayarları görüntüleyip değiştir
             # Control buttons
             keyboard.extend([
                 [
-                    InlineKeyboardButton("🔄 Kategori Sıfırla", callback_data=f"settings_reset_category_{category}"),
-                    InlineKeyboardButton("📊 Genel Durum", callback_data="settings_status")
+                    InlineKeyboardButton("🔄 Reset Category", callback_data=f"settings_reset_category_{category}"),
+                    InlineKeyboardButton("📊 Status", callback_data="settings_status")
                 ],
                 [
-                    InlineKeyboardButton("⬅️ Geri", callback_data="settings_main"),
-                    InlineKeyboardButton("🏠 Ana Menü", callback_data="main_menu")
+                    InlineKeyboardButton("⬅️ Back", callback_data="settings_main"),
+                    InlineKeyboardButton("🏠 Main Menu", callback_data="main_menu")
                 ]
             ])
             
