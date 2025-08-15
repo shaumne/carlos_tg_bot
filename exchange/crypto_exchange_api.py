@@ -59,6 +59,18 @@ class TradeInfo:
     fee: float
     timestamp: str
 
+@dataclass
+class PositionInfo:
+    """Position bilgisi"""
+    instrument_name: str
+    position_type: str  # PERPETUAL_SWAP, etc.
+    quantity: float
+    cost: float
+    open_position_pnl: float
+    open_pos_cost: float
+    session_pnl: float
+    update_timestamp: Optional[int] = None
+
 class CryptoExchangeAPI:
     """
     Crypto.com Exchange API için gelişmiş adapter sınıfı
@@ -1025,6 +1037,133 @@ class CryptoExchangeAPI:
         except Exception as e:
             logger.error(f"Error getting trade history: {str(e)}")
             return []
+    
+    def get_open_orders(self, instrument_name: str = None) -> List[OrderInfo]:
+        """Açık emirleri getir"""
+        try:
+            params = {}
+            
+            if instrument_name:
+                # Format instrument name
+                formatted_instrument = self._format_instrument_name(instrument_name)
+                if formatted_instrument:
+                    params["instrument_name"] = formatted_instrument
+                else:
+                    logger.warning(f"Could not format instrument name: {instrument_name}")
+            
+            logger.info(f"get_open_orders called with params: {params}")
+            
+            response = self.send_request("private/get-open-orders", params)
+            
+            if response.get("code") == 0:
+                orders_data = response.get("result", {}).get("data", [])
+                
+                orders = []
+                for order_data in orders_data:
+                    order_info = OrderInfo(
+                        order_id=order_data.get("order_id", ""),
+                        instrument_name=order_data.get("instrument_name", ""),
+                        side=order_data.get("side", ""),
+                        type=order_data.get("order_type", ""),
+                        status=order_data.get("status", ""),
+                        price=float(order_data.get("limit_price", 0)),
+                        quantity=float(order_data.get("quantity", 0)),
+                        filled_quantity=float(order_data.get("cumulative_quantity", 0)),
+                        avg_price=float(order_data.get("avg_price", 0)),
+                        created_time=str(order_data.get("create_time", "")),
+                        updated_time=str(order_data.get("update_time", ""))
+                    )
+                    orders.append(order_info)
+                
+                logger.info(f"Retrieved {len(orders)} open orders")
+                return orders
+            else:
+                logger.error(f"Failed to get open orders: {response}")
+                return []
+                
+        except Exception as e:
+            logger.error(f"Error getting open orders: {str(e)}")
+            return []
+    
+    def get_positions(self, instrument_name: str = None) -> List[PositionInfo]:
+        """Pozisyonları getir"""
+        try:
+            params = {}
+            
+            if instrument_name:
+                # Format instrument name
+                formatted_instrument = self._format_instrument_name(instrument_name)
+                if formatted_instrument:
+                    params["instrument_name"] = formatted_instrument
+                else:
+                    logger.warning(f"Could not format instrument name: {instrument_name}")
+            
+            logger.info(f"get_positions called with params: {params}")
+            
+            response = self.send_request("private/get-positions", params)
+            
+            if response.get("code") == 0:
+                positions_data = response.get("result", {}).get("data", [])
+                
+                positions = []
+                for position_data in positions_data:
+                    position_info = PositionInfo(
+                        instrument_name=position_data.get("instrument_name", ""),
+                        position_type=position_data.get("type", ""),
+                        quantity=float(position_data.get("quantity", 0)),
+                        cost=float(position_data.get("cost", 0)),
+                        open_position_pnl=float(position_data.get("open_position_pnl", 0)),
+                        open_pos_cost=float(position_data.get("open_pos_cost", 0)),
+                        session_pnl=float(position_data.get("session_pnl", 0)),
+                        update_timestamp=position_data.get("update_timestamp_ms")
+                    )
+                    positions.append(position_info)
+                
+                logger.info(f"Retrieved {len(positions)} positions")
+                return positions
+            else:
+                logger.error(f"Failed to get positions: {response}")
+                return []
+                
+        except Exception as e:
+            logger.error(f"Error getting positions: {str(e)}")
+            return []
+    
+    def get_order_detail(self, order_id: str) -> Optional[OrderInfo]:
+        """Detaylı order bilgisi getir"""
+        try:
+            params = {"order_id": str(order_id)}
+            
+            logger.info(f"get_order_detail called for order_id: {order_id}")
+            
+            response = self.send_request("private/get-order-detail", params)
+            
+            if response.get("code") == 0:
+                result = response.get("result", {})
+                
+                order_info = OrderInfo(
+                    order_id=result.get("order_id", ""),
+                    instrument_name=result.get("instrument_name", ""),
+                    side=result.get("side", ""),
+                    type=result.get("order_type", ""),
+                    status=result.get("status", ""),
+                    price=float(result.get("limit_price", 0)),
+                    quantity=float(result.get("quantity", 0)),
+                    filled_quantity=float(result.get("cumulative_quantity", 0)),
+                    avg_price=float(result.get("avg_price", 0)),
+                    created_time=str(result.get("create_time", "")),
+                    updated_time=str(result.get("update_time", ""))
+                )
+                
+                logger.info(f"Retrieved order detail for {order_id}")
+                return order_info
+            else:
+                logger.error(f"Failed to get order detail: {response}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error getting order detail: {str(e)}")
+            return None
     
     # ============ UTILITY METHODS ============
     

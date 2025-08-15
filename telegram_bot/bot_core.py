@@ -402,6 +402,10 @@ This bot trades with real money. Always be careful!
             # Get all balances from exchange
             all_balances = self.exchange_api.get_all_balances()
             
+            # Get open orders and positions
+            open_orders = self.exchange_api.get_open_orders()
+            positions = self.exchange_api.get_positions()
+            
             # Filter out zero balances and USDT (show separately)
             significant_balances = []
             usdt_balance = 0
@@ -481,6 +485,46 @@ To start trading:
                         """
                 
                 portfolio_text += f"\n💰 <b>Total Portfolio Value: ${total_value_usd:.2f}</b>"
+                
+                # Show open orders if any
+                if open_orders:
+                    portfolio_text += f"\n\n📋 <b>Open Orders</b> ({len(open_orders)})\n"
+                    
+                    for order in open_orders[:3]:  # Show first 3
+                        side_emoji = "🟢" if order.side == "BUY" else "🔴"
+                        status_emoji = {
+                            "ACTIVE": "🟡",
+                            "NEW": "🆕", 
+                            "PENDING": "⏳"
+                        }.get(order.status, "❓")
+                        
+                        portfolio_text += f"""
+{side_emoji} <b>{order.instrument_name}</b> {status_emoji}
+• Type: {order.side} {order.type}
+• Price: ${order.price:.6f}
+• Quantity: {order.quantity:.6f}
+• Filled: {order.filled_quantity:.6f}
+
+                        """
+                    
+                    if len(open_orders) > 3:
+                        portfolio_text += f"... and {len(open_orders) - 3} more orders\n"
+                
+                # Show positions if any
+                if positions:
+                    portfolio_text += f"\n📊 <b>Positions</b> ({len(positions)})\n"
+                    
+                    for position in positions:
+                        pnl_emoji = "🟢" if position.open_position_pnl > 0 else "🔴" if position.open_position_pnl < 0 else "⚪"
+                        
+                        portfolio_text += f"""
+{pnl_emoji} <b>{position.instrument_name}</b>
+• Quantity: {position.quantity:.6f}
+• Cost: ${position.cost:.2f}
+• P&L: ${position.open_position_pnl:.2f}
+• Session P&L: ${position.session_pnl:.2f}
+
+                        """
             
             # Portfolio actions
             keyboard = [
@@ -491,6 +535,10 @@ To start trading:
                 [
                     InlineKeyboardButton("📊 Signals", callback_data="signals"),
                     InlineKeyboardButton("📜 History", callback_data="history")
+                ],
+                [
+                    InlineKeyboardButton("📋 Active Orders", callback_data="active_orders"),
+                    InlineKeyboardButton("📈 Positions", callback_data="positions")
                 ]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
@@ -1248,6 +1296,10 @@ History will appear here after you place trades.
             await self._handle_analyze_callback(query)
         elif data == "detailed_history":
             await self._handle_detailed_history_callback(query)
+        elif data == "active_orders":
+            await self._handle_active_orders_callback(query)
+        elif data == "positions":
+            await self._handle_positions_callback(query)
         elif data == "cancel":
             await query.edit_message_text("❌ Operation cancelled.")
         elif data == "main_menu":
@@ -2408,3 +2460,135 @@ No trades will be executed until bot is restarted.
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.is_running:
             asyncio.create_task(self.stop())
+    
+    async def _handle_active_orders_callback(self, query):
+        """Handle active orders callback"""
+        try:
+            if not self._check_authorization(query.from_user.id):
+                await query.edit_message_text("❌ Unauthorized access!")
+                return
+            
+            # Get open orders from exchange
+            open_orders = self.exchange_api.get_open_orders()
+            
+            if not open_orders:
+                orders_text = """
+📋 <b>Active Orders</b>
+
+📭 <b>No active orders found.</b>
+
+Orders will appear here when you have pending trades.
+                """
+            else:
+                orders_text = f"📋 <b>Active Orders</b> ({len(open_orders)})\n\n"
+                
+                for i, order in enumerate(open_orders, 1):
+                    side_emoji = "🟢" if order.side == "BUY" else "🔴"
+                    status_emoji = {
+                        "ACTIVE": "🟡",
+                        "NEW": "🆕", 
+                        "PENDING": "⏳"
+                    }.get(order.status, "❓")
+                    
+                    fill_percentage = (order.filled_quantity / order.quantity * 100) if order.quantity > 0 else 0
+                    
+                    orders_text += f"""
+{i}. {side_emoji} <b>{order.instrument_name}</b> {status_emoji}
+   • Side: {order.side} {order.type}
+   • Price: ${order.price:.6f}
+   • Quantity: {order.quantity:.6f}
+   • Filled: {order.filled_quantity:.6f} ({fill_percentage:.1f}%)
+   • Order ID: {order.order_id[:8]}...
+   • Created: {order.created_time[:16] if order.created_time else 'N/A'}
+
+                    """
+            
+            # Navigation buttons
+            keyboard = [
+                [
+                    InlineKeyboardButton("🔄 Refresh", callback_data="active_orders"),
+                    InlineKeyboardButton("📈 Positions", callback_data="positions")
+                ],
+                [
+                    InlineKeyboardButton("💰 Portfolio", callback_data="portfolio"),
+                    InlineKeyboardButton("🏠 Main Menu", callback_data="main_menu")
+                ]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(
+                orders_text,
+                parse_mode=ParseMode.HTML,
+                reply_markup=reply_markup
+            )
+            
+        except Exception as e:
+            logger.error(f"Error in active orders callback: {str(e)}")
+            await query.edit_message_text(
+                f"❌ Error getting active orders:\n{str(e)}"
+            )
+    
+    async def _handle_positions_callback(self, query):
+        """Handle positions callback"""
+        try:
+            if not self._check_authorization(query.from_user.id):
+                await query.edit_message_text("❌ Unauthorized access!")
+                return
+            
+            # Get positions from exchange
+            positions = self.exchange_api.get_positions()
+            
+            if not positions:
+                positions_text = """
+📈 <b>Positions</b>
+
+📭 <b>No open positions found.</b>
+
+Positions will appear here when you have open trades.
+                """
+            else:
+                positions_text = f"📈 <b>Open Positions</b> ({len(positions)})\n\n"
+                
+                total_pnl = 0
+                for i, position in enumerate(positions, 1):
+                    pnl_emoji = "🟢" if position.open_position_pnl > 0 else "🔴" if position.open_position_pnl < 0 else "⚪"
+                    total_pnl += position.open_position_pnl
+                    
+                    positions_text += f"""
+{i}. {pnl_emoji} <b>{position.instrument_name}</b>
+   • Type: {position.position_type}
+   • Quantity: {position.quantity:.6f}
+   • Cost: ${position.cost:.2f}
+   • Open P&L: ${position.open_position_pnl:.2f}
+   • Session P&L: ${position.session_pnl:.2f}
+   • Updated: {position.update_timestamp}
+
+                    """
+                
+                pnl_emoji = "🟢" if total_pnl > 0 else "🔴" if total_pnl < 0 else "⚪"
+                positions_text += f"\n{pnl_emoji} <b>Total P&L: ${total_pnl:.2f}</b>"
+            
+            # Navigation buttons
+            keyboard = [
+                [
+                    InlineKeyboardButton("🔄 Refresh", callback_data="positions"),
+                    InlineKeyboardButton("📋 Active Orders", callback_data="active_orders")
+                ],
+                [
+                    InlineKeyboardButton("💰 Portfolio", callback_data="portfolio"),
+                    InlineKeyboardButton("🏠 Main Menu", callback_data="main_menu")
+                ]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(
+                positions_text,
+                parse_mode=ParseMode.HTML,
+                reply_markup=reply_markup
+            )
+            
+        except Exception as e:
+            logger.error(f"Error in positions callback: {str(e)}")
+            await query.edit_message_text(
+                f"❌ Error getting positions:\n{str(e)}"
+            )
