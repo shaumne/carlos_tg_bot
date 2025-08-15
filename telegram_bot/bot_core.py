@@ -208,27 +208,27 @@ class TelegramTradingBot:
             return
         
         welcome_text = f"""
-🤖 **Welcome to Telegram Trading Bot!**
+🤖 <b>Welcome to Telegram Trading Bot!</b>
 
 Hello {user.first_name}! 👋
 
 This bot allows you to manage your cryptocurrency trading operations through Telegram.
 
-**🚀 Key Features:**
+<b>🚀 Key Features:</b>
 • 📊 Technical analysis and signal generation
 • 💰 Automated buy/sell operations  
 • 📈 Portfolio tracking and reporting
 • 🔔 Real-time notifications
 • ⚙️ Flexible settings management
 
-**📋 Getting Started Commands:**
-• `/help` - Show all commands
-• `/status` - Check bot status
-• `/portfolio` - View your portfolio
-• `/watchlist` - Show tracked coins
-• `/settings` - Configure bot settings
+<b>📋 Getting Started Commands:</b>
+• <code>/help</code> - Show all commands
+• <code>/status</code> - Check bot status
+• <code>/portfolio</code> - View your portfolio
+• <code>/watchlist</code> - Show tracked coins
+• <code>/settings</code> - Configure bot settings
 
-**⚠️ Important Warning:**
+<b>⚠️ Important Warning:</b>
 This bot trades with real money. All trades are at your own responsibility.
 
 Use any command to get started! 🎯
@@ -252,7 +252,7 @@ Use any command to get started! 🎯
         
         await update.message.reply_text(
             welcome_text,
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
             reply_markup=reply_markup
         )
         
@@ -267,43 +267,43 @@ Use any command to get started! 🎯
             return
         
         help_text = """
-📚 **Telegram Trading Bot - Command Guide**
+📚 <b>Telegram Trading Bot - Command Guide</b>
 
-**📊 Information Commands:**
-• `/status` - Bot status and system information
-• `/portfolio` - Active positions and P&L
-• `/balance` - Exchange balance information
-• `/watchlist` - Tracked coin list
-• `/signals` - Recent trading signals
-• `/history` - Trade history
-• `/health` - System health check
+<b>📊 Information Commands:</b>
+• <code>/status</code> - Bot status and system information
+• <code>/portfolio</code> - Active positions and P&L
+• <code>/balance</code> - Exchange balance information
+• <code>/watchlist</code> - Tracked coin list
+• <code>/signals</code> - Recent trading signals
+• <code>/history</code> - Trade history
+• <code>/health</code> - System health check
 
-**🔧 Management Commands:**
-• `/add_coin [SYMBOL]` - Add coin to watchlist
-• `/remove_coin [SYMBOL]` - Remove coin from list
-• `/analyze [SYMBOL]` - Analyze specific coin
-• `/settings` - View/edit bot settings
+<b>🔧 Management Commands:</b>
+• <code>/add_coin [SYMBOL]</code> - Add coin to watchlist
+• <code>/remove_coin [SYMBOL]</code> - Remove coin from list
+• <code>/analyze [SYMBOL]</code> - Analyze specific coin
+• <code>/settings</code> - View/edit bot settings
 
-**⚙️ Settings:**
+<b>⚙️ Settings:</b>
 • Trade amount, risk parameters
 • Notification preferences
 • Auto trading enable/disable
 
-**🔐 Admin Commands:**
-• `/admin` - Admin panel
-• `/logs` - System logs
-• `/backup` - Database backup
+<b>🔐 Admin Commands:</b>
+• <code>/admin</code> - Admin panel
+• <code>/logs</code> - System logs
+• <code>/backup</code> - Database backup
 
-**💡 Tips:**
+<b>💡 Tips:</b>
 • Commands can be used alone or with parameters
-• Example: `/analyze BTC` or just `/analyze`
+• Example: <code>/analyze BTC</code> or just <code>/analyze</code>
 • Use buttons for interactive menus
 
-**⚠️ Risk Warning:**
+<b>⚠️ Risk Warning:</b>
 This bot trades with real money. Always be careful!
         """
         
-        await update.message.reply_text(help_text, parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_text(help_text, parse_mode=ParseMode.HTML)
     
     async def _cmd_status(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Status command"""
@@ -330,31 +330,31 @@ This bot trades with real money. Always be careful!
             recent_signals = self.db.get_recent_signals(limit=5)
             
             status_text = f"""
-📊 **Bot Status Report**
+📊 <b>Bot Status Report</b>
 
-**🤖 System Status:**
+<b>🤖 System Status:</b>
 • Bot: ✅ Active
 • Exchange: {exchange_status}
 • Database: ✅ Connected ({db_stats.get('db_size_mb', 0)} MB)
 • Signal Engine: ✅ Active
 
-**📈 Trading Status:**
+<b>📈 Trading Status:</b>
 • Active Positions: {len(active_positions)}
 • Tracked Coins: {db_stats.get('watched_coins_count', 0)}
 • Last 24h Signals: {db_stats.get('signals_24h', 0)}
 • Last 24h Trades: {db_stats.get('trades_24h', 0)}
 
-**⚙️ Settings:**
+<b>⚙️ Settings:</b>
 • Trade Amount: {config_summary['trading']['trade_amount']} USDT
 • Max Positions: {config_summary['trading']['max_positions']}
 • Auto Trading: {'✅' if config_summary['trading']['auto_trading_enabled'] else '❌'}
 • Paper Trading: {'✅' if config_summary['trading']['paper_trading_enabled'] else '❌'}
 
-**🔔 Notifications:**
+<b>🔔 Notifications:</b>
 • Signals: {'✅' if config_summary['monitoring']['notifications_enabled'] else '❌'}
 • Log Level: {config_summary['monitoring']['log_level']}
 
-**⏰ Last Update:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+<b>⏰ Last Update:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             """
             
             # Quick action buttons
@@ -372,7 +372,7 @@ This bot trades with real money. Always be careful!
             
             await update.message.reply_text(
                 status_text,
-                parse_mode=ParseMode.MARKDOWN,
+                parse_mode=ParseMode.HTML,
                 reply_markup=reply_markup
             )
             
@@ -395,17 +395,17 @@ This bot trades with real money. Always be careful!
             
             if not active_positions:
                 portfolio_text = """
-💰 **Portfolio Report**
+💰 <b>Portfolio Report</b>
 
-📭 **No active positions found.**
+📭 <b>No active positions found.</b>
 
 To open positions:
-• `/watchlist` to view tracked coins
-• `/signals` to check trading signals
-• `/add_coin [SYMBOL]` to add new coins
+• <code>/watchlist</code> to view tracked coins
+• <code>/signals</code> to check trading signals
+• <code>/add_coin [SYMBOL]</code> to add new coins
                 """
             else:
-                portfolio_text = "💰 **Portfolio Report**\n\n"
+                portfolio_text = "💰 <b>Portfolio Report</b>\n\n"
                 total_pnl = 0
                 
                 for pos in active_positions:
@@ -424,7 +424,7 @@ To open positions:
                             status_emoji = "🟢" if pnl > 0 else "🔴" if pnl < 0 else "⚪"
                             
                             portfolio_text += f"""
-{status_emoji} **{symbol}**
+{status_emoji} <b>{symbol}</b>
 • Entry: ${entry_price:.6f}
 • Current: ${current_price:.6f}
 • Quantity: {quantity:.6f}
@@ -435,7 +435,7 @@ To open positions:
                             """
                         else:
                             portfolio_text += f"""
-⚪ **{symbol}**
+⚪ <b>{symbol}</b>
 • Entry: ${entry_price:.6f}
 • Quantity: {quantity:.6f}
 • Price unavailable
@@ -445,7 +445,7 @@ To open positions:
                         logger.error(f"Error getting price for {symbol}: {str(e)}")
                 
                 total_emoji = "🟢" if total_pnl > 0 else "🔴" if total_pnl < 0 else "⚪"
-                portfolio_text += f"\n{total_emoji} **Total P&L: ${total_pnl:.2f}**"
+                portfolio_text += f"\n{total_emoji} <b>Total P&L: ${total_pnl:.2f}</b>"
             
             # Portfolio actions
             keyboard = [
@@ -462,7 +462,7 @@ To open positions:
             
             await update.message.reply_text(
                 portfolio_text,
-                parse_mode=ParseMode.MARKDOWN,
+                parse_mode=ParseMode.HTML,
                 reply_markup=reply_markup
             )
             
@@ -484,9 +484,9 @@ To open positions:
             
             if not balances:
                 balance_text = """
-💳 **Balance Report**
+💳 <b>Balance Report</b>
 
-❌ **Could not retrieve balance information**
+❌ <b>Could not retrieve balance information</b>
 
 Possible reasons:
 • Exchange API connection issue
@@ -494,20 +494,20 @@ Possible reasons:
 • Authorization problem
                 """
             else:
-                balance_text = "💳 **Balance Report**\n\n"
+                balance_text = "💳 <b>Balance Report</b>\n\n"
                 
                 # Significant balances first
                 significant_balances = [b for b in balances if b.available > 0.01]
                 other_balances = [b for b in balances if b.available <= 0.01 and b.available > 0]
                 
                 if significant_balances:
-                    balance_text += "**💰 Main Balances:**\n"
+                    balance_text += "<b>💰 Main Balances:</b>\n"
                     for balance in significant_balances:
                         locked_info = f" (Locked: {balance.locked:.6f})" if balance.locked > 0 else ""
-                        balance_text += f"• **{balance.currency}**: {balance.available:.6f}{locked_info}\n"
+                        balance_text += f"• <b>{balance.currency}</b>: {balance.available:.6f}{locked_info}\n"
                 
                 if other_balances:
-                    balance_text += f"\n**🪙 Others ({len(other_balances)} coins):**\n"
+                    balance_text += f"\n<b>🪙 Others ({len(other_balances)} coins):</b>\n"
                     for balance in other_balances[:10]:  # Show only first 10
                         balance_text += f"• {balance.currency}: {balance.available:.6f}\n"
                     
@@ -519,9 +519,9 @@ Possible reasons:
                 min_required = self.config.trading.min_balance_required
                 
                 if usdt_balance >= min_required:
-                    balance_text += f"\n✅ **Sufficient balance for trading** (Min: {min_required} USDT)"
+                    balance_text += f"\n✅ <b>Sufficient balance for trading</b> (Min: {min_required} USDT)"
                 else:
-                    balance_text += f"\n⚠️ **Insufficient USDT balance** (Min: {min_required} USDT)"
+                    balance_text += f"\n⚠️ <b>Insufficient USDT balance</b> (Min: {min_required} USDT)"
             
             # Balance actions
             keyboard = [
@@ -537,7 +537,7 @@ Possible reasons:
             
             await update.message.reply_text(
                 balance_text,
-                parse_mode=ParseMode.MARKDOWN,
+                parse_mode=ParseMode.HTML,
                 reply_markup=reply_markup
             )
             
@@ -558,16 +558,16 @@ Possible reasons:
             
             if not watched_coins:
                 watchlist_text = """
-📋 **Watchlist**
+📋 <b>Watchlist</b>
 
-📭 **No coins being tracked.**
+📭 <b>No coins being tracked.</b>
 
 To add coins:
-• `/add_coin BTC` (via command)
+• <code>/add_coin BTC</code> (via command)
 • Use "Add Coin" button below
                 """
             else:
-                watchlist_text = f"📋 **Watchlist** ({len(watched_coins)} coins)\n\n"
+                watchlist_text = f"📋 <b>Watchlist</b> ({len(watched_coins)} coins)\n\n"
                 
                 for coin in watched_coins:
                     symbol = coin['symbol']
@@ -585,7 +585,7 @@ To add coins:
                     active_pos = self.db.get_active_positions(symbol)
                     position_info = "📈 Active position" if active_pos else ""
                     
-                    watchlist_text += f"• **{symbol}** ({formatted_symbol})\n"
+                    watchlist_text += f"• <b>{symbol}</b> ({formatted_symbol})\n"
                     watchlist_text += f"  💰 {price_info} {position_info}\n"
                     watchlist_text += f"  📅 Added: {added_date[:10]}\n\n"
             
@@ -604,7 +604,7 @@ To add coins:
             
             await update.message.reply_text(
                 watchlist_text,
-                parse_mode=ParseMode.MARKDOWN,
+                parse_mode=ParseMode.HTML,
                 reply_markup=reply_markup
             )
             
@@ -625,17 +625,17 @@ To add coins:
             
             if not recent_signals:
                 signals_text = """
-📊 **Trading Signals**
+📊 <b>Trading Signals</b>
 
-📭 **No signals generated yet.**
+📭 <b>No signals generated yet.</b>
 
 To generate signals:
-• Add coins to watchlist (`/add_coin`)
+• Add coins to watchlist (<code>/add_coin</code>)
 • System will analyze automatically
-• Manual analysis: `/analyze [SYMBOL]`
+• Manual analysis: <code>/analyze [SYMBOL]</code>
                 """
             else:
-                signals_text = f"📊 **Recent Trading Signals** ({len(recent_signals)})\n\n"
+                signals_text = f"📊 <b>Recent Trading Signals</b> ({len(recent_signals)})\n\n"
                 
                 for signal in recent_signals[:5]:  # Show last 5
                     symbol = signal['symbol']
@@ -656,7 +656,7 @@ To generate signals:
                     conf_bars = "█" * int(confidence * 5)
                     
                     signals_text += f"""
-{emoji} **{symbol}** - {signal_type}
+{emoji} <b>{symbol}</b> - {signal_type}
 • Price: ${price:.6f}
 • Confidence: {conf_bars} ({confidence:.0%})
 • Time: {timestamp[:16]}
@@ -681,7 +681,7 @@ To generate signals:
             
             await update.message.reply_text(
                 signals_text,
-                parse_mode=ParseMode.MARKDOWN,
+                parse_mode=ParseMode.HTML,
                 reply_markup=reply_markup
             )
             
@@ -702,14 +702,14 @@ To generate signals:
             
             if not trade_history:
                 history_text = """
-📜 **Trade History**
+📜 <b>Trade History</b>
 
-📭 **No trade history found yet.**
+📭 <b>No trade history found yet.</b>
 
 Will appear here after trading.
                 """
             else:
-                history_text = f"📜 **Recent Trades** ({len(trade_history)})\n\n"
+                history_text = f"📜 <b>Recent Trades</b> ({len(trade_history)})\n\n"
                 
                 total_pnl = 0
                 for trade in trade_history[:5]:  # Show last 5
@@ -755,7 +755,7 @@ Will appear here after trading.
             
             await update.message.reply_text(
                 history_text,
-                parse_mode=ParseMode.MARKDOWN,
+                parse_mode=ParseMode.HTML,
                 reply_markup=reply_markup
             )
             
@@ -1163,6 +1163,8 @@ Will appear here after trading.
             await self._handle_remove_coin_callback(query)
         elif data == "analyze":
             await self._handle_analyze_callback(query)
+        elif data == "detailed_history":
+            await self._handle_detailed_history_callback(query)
         elif data == "cancel":
             await query.edit_message_text("❌ Operation cancelled.")
         elif data == "main_menu":
@@ -1313,29 +1315,29 @@ Will appear here after trading.
             confidence_bars = "█" * int(signal.confidence * 5)
             
             analysis_text = f"""
-📊 **{symbol} Technical Analysis**
+📊 <b>{symbol} Technical Analysis</b>
 
-{signal_emoji} **Signal: {signal.signal_type}**
-📈 **Price:** ${signal.price:.6f}
-🎯 **Confidence:** {confidence_bars} ({signal.confidence:.0%})
-⚠️ **Risk:** {signal.risk_level}
+{signal_emoji} <b>Signal: {signal.signal_type}</b>
+📈 <b>Price:</b> ${signal.price:.6f}
+🎯 <b>Confidence:</b> {confidence_bars} ({signal.confidence:.0%})
+⚠️ <b>Risk:</b> {signal.risk_level}
 
-**📋 Technical Indicators:**
+<b>📋 Technical Indicators:</b>
 • RSI: {signal.indicators.rsi:.1f} 
 • ATR: {signal.indicators.atr:.6f}
 • MA20: ${signal.indicators.ma_20:.6f}
 • EMA12: ${signal.indicators.ema_12:.6f}
 
-**🔍 Analysis Reasons:**
+<b>🔍 Analysis Reasons:</b>
 {chr(10).join(['• ' + reason for reason in signal.reasoning])}
 
-**📊 Market Data:**
+<b>📊 Market Data:</b>
 • 24h Change: {signal.market_data.change_24h:+.2f}%
 • 24h High: ${signal.market_data.high_24h:.6f}
 • 24h Low: ${signal.market_data.low_24h:.6f}
 • Volume: {signal.market_data.volume:.0f}
 
-⏰ **Analysis Time:** {signal.timestamp.strftime('%Y-%m-%d %H:%M:%S')}
+⏰ <b>Analysis Time:</b> {signal.timestamp.strftime('%Y-%m-%d %H:%M:%S')}
             """
             
             # Save signal to database
@@ -1354,14 +1356,14 @@ Will appear here after trading.
                 # It's a CallbackQuery
                 await update_or_query.edit_message_text(
                     text, 
-                    parse_mode=ParseMode.MARKDOWN, 
+                    parse_mode=ParseMode.HTML, 
                     reply_markup=reply_markup
                 )
             elif hasattr(update_or_query, 'message') and update_or_query.message:
                 # It's an Update with message
                 await update_or_query.message.reply_text(
                     text, 
-                    parse_mode=ParseMode.MARKDOWN, 
+                    parse_mode=ParseMode.HTML, 
                     reply_markup=reply_markup
                 )
             elif hasattr(update_or_query, 'effective_chat'):
@@ -1369,7 +1371,7 @@ Will appear here after trading.
                 await self.application.bot.send_message(
                     chat_id=update_or_query.effective_chat.id,
                     text=text,
-                    parse_mode=ParseMode.MARKDOWN,
+                    parse_mode=ParseMode.HTML,
                     reply_markup=reply_markup
                 )
             else:
@@ -1517,6 +1519,18 @@ Will appear here after trading.
         
         mock_update = MockUpdate(query)
         await self._cmd_analyze(mock_update, None)
+    
+    async def _handle_detailed_history_callback(self, query):
+        """Handle detailed history callback"""
+        class MockUpdate:
+            def __init__(self, query):
+                self.effective_user = query.from_user
+                self.message = query.message
+                self.callback_query = query
+        
+        mock_update = MockUpdate(query)
+        # For now, just show the same history but with more details
+        await self._cmd_history(mock_update, None)
     
     # ============ ERROR HANDLER ============
     
