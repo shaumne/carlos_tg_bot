@@ -1,0 +1,72 @@
+2025-08-15 18:57:52 | telegram_trading_bot |     INFO | logging_setup.py:91 | setup_logging() | Logging initialized - Level: INFO, File: logs/trading_bot.log
+2025-08-15 18:57:52 | main |     INFO | logging_setup.py:139 | info() | 🚀 Telegram Trading Bot - Main Process Starting
+2025-08-15 18:57:52 | main |     INFO | logging_setup.py:139 | info() | 📋 Loading configuration...
+2025-08-15 18:57:52 | config.config |     INFO | config.py:156 | load_config() | No config file found, using default values
+2025-08-15 18:57:52 | config.config |     INFO | config.py:146 | __init__() | Configuration manager initialized successfully
+2025-08-15 18:57:52 | main |     INFO | logging_setup.py:139 | info() | ✅ Configuration loaded and validated
+2025-08-15 18:57:52 | main |     INFO | logging_setup.py:139 | info() | 🗄️ Initializing database...
+2025-08-15 18:57:52 | database.database_manager |     INFO | database_manager.py:71 | initialize_database() | Database schema initialized successfully
+2025-08-15 18:57:52 | database.database_manager |     INFO | database_manager.py:32 | __init__() | Database manager initialized: data/trading_bot.db
+2025-08-15 18:57:52 | main |     INFO | logging_setup.py:139 | info() | ✅ Database initialized - 0.0 MB
+2025-08-15 18:57:52 | main |     INFO | logging_setup.py:139 | info() | ================================================================================
+2025-08-15 18:57:52 | main |     INFO | logging_setup.py:139 | info() | 🤖 TELEGRAM TRADING BOT STARTING UP
+2025-08-15 18:57:52 | main |     INFO | logging_setup.py:139 | info() | ================================================================================
+2025-08-15 18:57:52 | main |     INFO | logging_setup.py:139 | info() | 📋 Configuration Summary:
+2025-08-15 18:57:52 | main |     INFO | logging_setup.py:139 | info() |   TELEGRAM:
+2025-08-15 18:57:52 | main |     INFO | logging_setup.py:139 | info() |     chat_id: -2253855350
+2025-08-15 18:57:52 | main |     INFO | logging_setup.py:139 | info() |     authorized_users_count: 1
+2025-08-15 18:57:52 | main |     INFO | logging_setup.py:139 | info() |     admin_users_count: 0
+2025-08-15 18:57:52 | main |     INFO | logging_setup.py:139 | info() |     webhook_configured: False
+2025-08-15 18:57:52 | main |     INFO | logging_setup.py:139 | info() |   EXCHANGE:
+2025-08-15 18:57:52 | main |     INFO | logging_setup.py:139 | info() |     base_url: https://api.crypto.com/exchange/v1/
+2025-08-15 18:57:52 | main |     INFO | logging_setup.py:139 | info() |     timeout: 30
+2025-08-15 18:57:52 | main |     INFO | logging_setup.py:139 | info() |     rate_limit: 10
+2025-08-15 18:57:52 | main |     INFO | logging_setup.py:139 | info() |   TRADING:
+2025-08-15 18:57:52 | main |     INFO | logging_setup.py:139 | info() |     trade_amount: 10.0
+2025-08-15 18:57:52 | main |     INFO | logging_setup.py:139 | info() |     max_positions: 5
+2025-08-15 18:57:52 | main |     INFO | logging_setup.py:139 | info() |     auto_trading_enabled: False
+2025-08-15 18:57:52 | main |     INFO | logging_setup.py:139 | info() |     paper_trading_enabled: True
+2025-08-15 18:57:52 | main |     INFO | logging_setup.py:139 | info() |     risk_per_trade: 2.0
+2025-08-15 18:57:52 | main |     INFO | logging_setup.py:139 | info() |   MONITORING:
+2025-08-15 18:57:52 | main |     INFO | logging_setup.py:139 | info() |     signal_check_interval: 30
+2025-08-15 18:57:52 | main |     INFO | logging_setup.py:139 | info() |     log_level: INFO
+2025-08-15 18:57:52 | main |     INFO | logging_setup.py:139 | info() |     notifications_enabled: True
+2025-08-15 18:57:52 | main |     INFO | logging_setup.py:139 | info() |   DATABASE:
+2025-08-15 18:57:52 | main |     INFO | logging_setup.py:139 | info() |     db_path: data/trading_bot.db
+2025-08-15 18:57:52 | main |     INFO | logging_setup.py:139 | info() |     backup_enabled: True
+2025-08-15 18:57:52 | main |     INFO | logging_setup.py:139 | info() |     backup_interval: 3600
+2025-08-15 18:57:52 | main |     INFO | logging_setup.py:139 | info() |   SECURITY:
+2025-08-15 18:57:52 | main |     INFO | logging_setup.py:139 | info() |     session_timeout: 3600
+2025-08-15 18:57:52 | main |     INFO | logging_setup.py:139 | info() |     rate_limiting_enabled: True
+2025-08-15 18:57:52 | main |     INFO | logging_setup.py:139 | info() |     audit_log_enabled: True
+2025-08-15 18:57:52 | main |     INFO | logging_setup.py:139 | info() | ================================================================================
+2025-08-15 18:57:52 | main |     INFO | logging_setup.py:139 | info() | 🚀 Bot initialization complete, starting main loop...
+2025-08-15 18:57:52 | main |     INFO | logging_setup.py:139 | info() | ================================================================================
+2025-08-15 18:57:52 | main |     INFO | logging_setup.py:139 | info() | 🤖 Starting Telegram Trading Bot...
+2025-08-15 18:57:52 | telegram_bot.bot_core |     INFO | bot_core.py:59 | __init__() | Telegram Trading Bot initialized
+2025-08-15 18:57:52 | telegram_bot.bot_core |     INFO | bot_core.py:1504 | start() | 🚀 Starting Telegram Trading Bot...
+2025-08-15 18:57:52 | config.dynamic_settings |     INFO | dynamic_settings.py:141 | __init__() | Dynamic Settings Manager initialized
+2025-08-15 18:57:52 | telegram_bot.bot_core |     INFO | bot_core.py:66 | initialize() | ✅ Dynamic settings manager initialized
+2025-08-15 18:57:52 | config.dynamic_settings |  WARNING | dynamic_settings.py:170 | get_setting() | Setting not found: technical.rsi_oversold
+2025-08-15 18:57:52 | config.dynamic_settings |  WARNING | dynamic_settings.py:170 | get_setting() | Setting not found: technical.rsi_overbought
+2025-08-15 18:57:52 | config.dynamic_settings |  WARNING | dynamic_settings.py:170 | get_setting() | Setting not found: notifications.notify_signals
+2025-08-15 18:57:52 | config.dynamic_settings |     INFO | dynamic_settings.py:498 | apply_runtime_settings() | Applied 4 runtime settings to config manager
+2025-08-15 18:57:52 | telegram_bot.bot_core |     INFO | bot_core.py:70 | initialize() | ✅ Runtime settings applied
+2025-08-15 18:57:52 | exchange.crypto_exchange_api |     INFO | crypto_exchange_api.py:92 | __init__() | CryptoExchangeAPI initialized - Trading: https://api.crypto.com/exchange/v1/, Account: https://api.crypto.com/v2/
+2025-08-15 18:57:52 | exchange.crypto_exchange_api |    ERROR | crypto_exchange_api.py:263 | send_request() | HTTP Error 401: {"id":1755251872254,"method":"private/get-account-summary","code":10003,"message":"IP_ILLEGAL"}
+2025-08-15 18:57:53 | exchange.crypto_exchange_api |    ERROR | crypto_exchange_api.py:263 | send_request() | HTTP Error 401: {"id":1755251872254,"method":"private/get-account-summary","code":10003,"message":"IP_ILLEGAL"}
+2025-08-15 18:57:53 | exchange.crypto_exchange_api |    ERROR | crypto_exchange_api.py:263 | send_request() | HTTP Error 401: {"id":1755251872254,"method":"private/get-account-summary","code":10003,"message":"IP_ILLEGAL"}
+2025-08-15 18:57:53 | exchange.crypto_exchange_api |    ERROR | crypto_exchange_api.py:306 | get_account_summary() | Failed to get account summary: {'error': 'HTTP 401', 'message': '{"id":1755251872254,"method":"private/get-account-summary","code":10003,"message":"IP_ILLEGAL"}'}
+2025-08-15 18:57:53 | exchange.crypto_exchange_api |    ERROR | crypto_exchange_api.py:98 | __init__() | ❌ Exchange API authentication failed
+2025-08-15 18:57:53 | telegram_bot.bot_core |    ERROR | bot_core.py:97 | initialize() | ❌ Failed to initialize bot: Could not authenticate with Crypto.com Exchange API
+2025-08-15 18:57:53 | telegram_bot.bot_core |    ERROR | bot_core.py:98 | initialize() | Traceback (most recent call last):
+  File "D:\carlos_tg\telegram_bot\bot_core.py", line 73, in initialize
+    self.exchange_api = CryptoExchangeAPI(self.config)
+                        ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "D:\carlos_tg\exchange\crypto_exchange_api.py", line 99, in __init__
+    raise ValueError("Could not authenticate with Crypto.com Exchange API")
+ValueError: Could not authenticate with Crypto.com Exchange API
+
+2025-08-15 18:57:53 | telegram_bot.bot_core |    ERROR | bot_core.py:1508 | start() | ❌ Bot initialization failed
+2025-08-15 18:57:53 | main |    ERROR | logging_setup.py:151 | error() | ❌ Failed to start Telegram Trading Bot
+2025-08-15 18:57:53 | main | CRITICAL | logging_setup.py:157 | critical() | ❌ Trading bot startup failed - exiting

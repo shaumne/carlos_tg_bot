@@ -792,12 +792,12 @@ Will appear here after trading.
             await self._add_coin_to_watchlist(update, symbol)
         else:
             # Start conversation
-            await update.message.reply_text(
-                "➕ **Add Coin**\n\n"
+            await self._send_response(
+                update,
+                "➕ <b>Add Coin</b>\n\n"
                 "Enter the coin symbol you want to add to watchlist:\n"
-                "Example: `BTC`, `ETH`, `SUI`\n\n"
-                "To cancel type `/cancel`.",
-                parse_mode=ParseMode.MARKDOWN
+                "Example: <code>BTC</code>, <code>ETH</code>, <code>SUI</code>\n\n"
+                "To cancel type <code>/cancel</code>."
             )
             
             # Set conversation state
@@ -821,13 +821,13 @@ Will appear here after trading.
             watched_coins = self.db.get_watched_coins()
             
             if not watched_coins:
-                await update.message.reply_text(
-                    "📭 Takip listesinde coin bulunmuyor.",
-                    parse_mode=ParseMode.MARKDOWN
+                await self._send_response(
+                    update,
+                    "📭 No coins in watchlist."
                 )
                 return
             
-            remove_text = "➖ **Remove Coin**\n\nSelect the coin you want to remove:"
+            remove_text = "➖ <b>Remove Coin</b>\n\nSelect the coin you want to remove:"
             
             # Create keyboard with coins
             keyboard = []
@@ -845,9 +845,9 @@ Will appear here after trading.
             
             reply_markup = InlineKeyboardMarkup(keyboard)
             
-            await update.message.reply_text(
+            await self._send_response(
+                update,
                 remove_text,
-                parse_mode=ParseMode.MARKDOWN,
                 reply_markup=reply_markup
             )
     
@@ -866,15 +866,15 @@ Will appear here after trading.
             watched_coins = self.db.get_watched_coins()
             
             if not watched_coins:
-                await update.message.reply_text(
+                await self._send_response(
+                    update,
                     "📭 No coins found to analyze.\n\n"
-                                         "First add coins with `/add_coin` or\n"
-                     "use `/analyze BTC` format.",
-                    parse_mode=ParseMode.MARKDOWN
+                    "First add coins with <code>/add_coin</code> or\n"
+                    "use <code>/analyze BTC</code> format."
                 )
                 return
             
-            analyze_text = "📊 **Analyze**\n\nSelect the coin you want to analyze:"
+            analyze_text = "📊 <b>Analyze</b>\n\nSelect the coin you want to analyze:"
             
             # Create keyboard with coins
             keyboard = []
@@ -892,9 +892,9 @@ Will appear here after trading.
             
             reply_markup = InlineKeyboardMarkup(keyboard)
             
-            await update.message.reply_text(
+            await self._send_response(
+                update,
                 analyze_text,
-                parse_mode=ParseMode.MARKDOWN,
                 reply_markup=reply_markup
             )
     
@@ -1495,8 +1495,13 @@ Will appear here after trading.
                 self.message = query.message
                 self.callback_query = query
         
+        class MockContext:
+            def __init__(self):
+                self.args = []
+        
         mock_update = MockUpdate(query)
-        await self._cmd_add_coin(mock_update, None)
+        mock_context = MockContext()
+        await self._cmd_add_coin(mock_update, mock_context)
     
     async def _handle_remove_coin_callback(self, query):
         """Handle remove coin callback"""
@@ -1506,8 +1511,13 @@ Will appear here after trading.
                 self.message = query.message
                 self.callback_query = query
         
+        class MockContext:
+            def __init__(self):
+                self.args = []
+        
         mock_update = MockUpdate(query)
-        await self._cmd_remove_coin(mock_update, None)
+        mock_context = MockContext()
+        await self._cmd_remove_coin(mock_update, mock_context)
     
     async def _handle_analyze_callback(self, query):
         """Handle analyze callback"""
@@ -1517,8 +1527,13 @@ Will appear here after trading.
                 self.message = query.message
                 self.callback_query = query
         
+        class MockContext:
+            def __init__(self):
+                self.args = []
+        
         mock_update = MockUpdate(query)
-        await self._cmd_analyze(mock_update, None)
+        mock_context = MockContext()
+        await self._cmd_analyze(mock_update, mock_context)
     
     async def _handle_detailed_history_callback(self, query):
         """Handle detailed history callback"""
@@ -1624,13 +1639,13 @@ Will appear here after trading.
         """Send startup notification"""
         try:
             startup_text = """
-🤖 **Trading Bot Başlatıldı!**
+🤖 **Trading Bot Started!**
 
-✅ Sistem aktif ve işlem bekliyor
-📊 Sinyal motoru çalışıyor
-💰 Exchange bağlantısı aktif
+✅ System active and waiting for trades
+📊 Signal engine running
+💰 Exchange connection active
 
-Komutlar için `/help` type.
+Type `/help` for commands.
             """
             
             await self.application.bot.send_message(
@@ -1646,13 +1661,13 @@ Komutlar için `/help` type.
         """Send shutdown notification"""
         try:
             shutdown_text = """
-🛑 **Trading Bot Kapatılıyor**
+🛑 **Trading Bot Shutting Down**
 
-⚠️ Sistem kapatılıyor
-📊 Aktif işlemler korunuyor
-💾 Veriler kaydediliyor
+⚠️ System shutting down
+📊 Active trades protected
+💾 Data being saved
 
-Bot tekrar başlatılana kadar işlem yapılmayacak.
+No trades will be executed until bot is restarted.
             """
             
             await self.application.bot.send_message(

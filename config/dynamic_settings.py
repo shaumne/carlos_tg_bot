@@ -64,7 +64,7 @@ class DynamicSettingsManager:
                 },
                 'enable_auto_trading': {
                     'type': 'bool',
-                    'description': 'Otomatik trading aktif/pasif',
+                    'description': 'Automatic trading active/inactive',
                     'restart_required': False
                 },
                 'stop_loss_percentage': {
@@ -108,7 +108,7 @@ class DynamicSettingsManager:
             'notifications': {
                 'notify_signals': {
                     'type': 'bool',
-                    'description': 'Sinyal bildirimleri',
+                    'description': 'Signal notifications',
                     'restart_required': False
                 },
                 'notify_trades': {
@@ -118,7 +118,7 @@ class DynamicSettingsManager:
                 },
                 'notify_errors': {
                     'type': 'bool',
-                    'description': 'Hata bildirimleri',
+                    'description': 'Error notifications',
                     'restart_required': False
                 }
             },
@@ -132,7 +132,7 @@ class DynamicSettingsManager:
                 },
                 'backup_enabled': {
                     'type': 'bool',
-                    'description': 'Otomatik backup',
+                    'description': 'Automatic backup',
                     'restart_required': False
                 }
             }
