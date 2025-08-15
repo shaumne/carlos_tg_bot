@@ -766,7 +766,7 @@ Will appear here after trading.
             )
     
     async def _cmd_settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Settings komutu - Yeni dinamik ayar sistemi"""
+        """Settings command - New dynamic settings system"""
         if not self._check_authorization(update.effective_user.id):
             await self._send_unauthorized_message(update)
             return
@@ -781,7 +781,7 @@ Will appear here after trading.
             )
     
     async def _cmd_add_coin(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Add coin komutu"""
+        """Add coin command"""
         if not self._check_authorization(update.effective_user.id):
             await self._send_unauthorized_message(update)
             return
@@ -807,7 +807,7 @@ Will appear here after trading.
             }
     
     async def _cmd_remove_coin(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Remove coin komutu"""
+        """Remove coin command"""
         if not self._check_authorization(update.effective_user.id):
             await self._send_unauthorized_message(update)
             return
@@ -852,7 +852,7 @@ Will appear here after trading.
             )
     
     async def _cmd_analyze(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Analyze komutu"""
+        """Analyze command"""
         if not self._check_authorization(update.effective_user.id):
             await self._send_unauthorized_message(update)
             return
@@ -899,7 +899,7 @@ Will appear here after trading.
             )
     
     async def _cmd_health(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Health check komutu"""
+        """Health check command"""
         if not self._check_authorization(update.effective_user.id):
             await self._send_unauthorized_message(update)
             return
@@ -994,7 +994,7 @@ Will appear here after trading.
     # ============ ADMIN COMMANDS ============
     
     async def _cmd_admin(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Admin komutu"""
+        """Admin command"""
         user_id = update.effective_user.id
         
         if not self._check_authorization(user_id):
@@ -1050,7 +1050,7 @@ Will appear here after trading.
         )
     
     async def _cmd_logs(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Logs komutu (admin only)"""
+        """Logs command (admin only)"""
         user_id = update.effective_user.id
         
         if not self._is_admin(user_id):
@@ -1080,10 +1080,10 @@ Will appear here after trading.
             await update.message.reply_text(logs_text, parse_mode=ParseMode.MARKDOWN)
             
         except Exception as e:
-            await update.message.reply_text(f"❌ Log okuma hatası: {str(e)}")
+            await update.message.reply_text(f"❌ Log reading error: {str(e)}")
     
     async def _cmd_backup(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Backup komutu (admin only)"""
+        """Backup command (admin only)"""
         user_id = update.effective_user.id
         
         if not self._is_admin(user_id):
@@ -1105,7 +1105,7 @@ Will appear here after trading.
                 )
                 
         except Exception as e:
-            await update.message.reply_text(f"❌ Backup hatası: {str(e)}")
+            await update.message.reply_text(f"❌ Backup error: {str(e)}")
     
     # ============ CALLBACK HANDLERS ============
     
@@ -1115,7 +1115,7 @@ Will appear here after trading.
         await query.answer()
         
         if not self._check_authorization(query.from_user.id):
-            await query.edit_message_text("❌ Yetkisiz erişim!")
+            await query.edit_message_text("❌ Unauthorized access!")
             return
         
         data = query.data
@@ -1157,6 +1157,12 @@ Will appear here after trading.
         elif data.startswith("analyze_"):
             symbol = data.split("_", 1)[1]
             await self._analyze_symbol(query, symbol)
+        elif data == "add_coin":
+            await self._handle_add_coin_callback(query)
+        elif data == "remove_coin":
+            await self._handle_remove_coin_callback(query)
+        elif data == "analyze":
+            await self._handle_analyze_callback(query)
         elif data == "cancel":
             await query.edit_message_text("❌ Operation cancelled.")
         elif data == "main_menu":
@@ -1307,26 +1313,26 @@ Will appear here after trading.
             confidence_bars = "█" * int(signal.confidence * 5)
             
             analysis_text = f"""
-📊 **{symbol} Teknik Analiz**
+📊 **{symbol} Technical Analysis**
 
-{signal_emoji} **Sinyal: {signal.signal_type}**
-📈 **Fiyat:** ${signal.price:.6f}
-🎯 **Güven:** {confidence_bars} ({signal.confidence:.0%})
+{signal_emoji} **Signal: {signal.signal_type}**
+📈 **Price:** ${signal.price:.6f}
+🎯 **Confidence:** {confidence_bars} ({signal.confidence:.0%})
 ⚠️ **Risk:** {signal.risk_level}
 
-**📋 Teknik Göstergeler:**
+**📋 Technical Indicators:**
 • RSI: {signal.indicators.rsi:.1f} 
 • ATR: {signal.indicators.atr:.6f}
 • MA20: ${signal.indicators.ma_20:.6f}
 • EMA12: ${signal.indicators.ema_12:.6f}
 
-**🔍 Analiz Sebepleri:**
+**🔍 Analysis Reasons:**
 {chr(10).join(['• ' + reason for reason in signal.reasoning])}
 
-**📊 Piyasa Verileri:**
-• 24h Değişim: {signal.market_data.change_24h:+.2f}%
-• 24h Yüksek: ${signal.market_data.high_24h:.6f}
-• 24h Düşük: ${signal.market_data.low_24h:.6f}
+**📊 Market Data:**
+• 24h Change: {signal.market_data.change_24h:+.2f}%
+• 24h High: ${signal.market_data.high_24h:.6f}
+• 24h Low: ${signal.market_data.low_24h:.6f}
 • Volume: {signal.market_data.volume:.0f}
 
 ⏰ **Analysis Time:** {signal.timestamp.strftime('%Y-%m-%d %H:%M:%S')}
@@ -1479,6 +1485,39 @@ Will appear here after trading.
         mock_update = MockUpdate(query)
         await self._cmd_start(mock_update, None)
     
+    async def _handle_add_coin_callback(self, query):
+        """Handle add coin callback"""
+        class MockUpdate:
+            def __init__(self, query):
+                self.effective_user = query.from_user
+                self.message = query.message
+                self.callback_query = query
+        
+        mock_update = MockUpdate(query)
+        await self._cmd_add_coin(mock_update, None)
+    
+    async def _handle_remove_coin_callback(self, query):
+        """Handle remove coin callback"""
+        class MockUpdate:
+            def __init__(self, query):
+                self.effective_user = query.from_user
+                self.message = query.message
+                self.callback_query = query
+        
+        mock_update = MockUpdate(query)
+        await self._cmd_remove_coin(mock_update, None)
+    
+    async def _handle_analyze_callback(self, query):
+        """Handle analyze callback"""
+        class MockUpdate:
+            def __init__(self, query):
+                self.effective_user = query.from_user
+                self.message = query.message
+                self.callback_query = query
+        
+        mock_update = MockUpdate(query)
+        await self._cmd_analyze(mock_update, None)
+    
     # ============ ERROR HANDLER ============
     
     async def _error_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1512,7 +1551,7 @@ Will appear here after trading.
     # ============ BOT LIFECYCLE ============
     
     async def start(self):
-        """Bot'u başlat"""
+        """Start the bot"""
         try:
             logger.info("🚀 Starting Telegram Trading Bot...")
             

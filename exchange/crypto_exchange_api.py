@@ -26,7 +26,7 @@ class OrderResult:
 
 @dataclass
 class BalanceInfo:
-    """Bakiye bilgisi"""
+    """Balance information"""
     currency: str
     available: float
     total: float

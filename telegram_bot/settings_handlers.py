@@ -73,7 +73,7 @@ Select a category below to view and modify settings:
             await self._send_error_message(update_or_query, "Error loading settings menu.")
     
     async def handle_settings_category(self, update_or_query, category: str):
-        """Belirli bir kategori ayarlarını göster"""
+        """Show specific category settings"""
         try:
             category_settings = self.settings_manager.get_category_settings(category)
             
@@ -158,7 +158,7 @@ Select a category below to view and modify settings:
             await self._send_error_message(update_or_query, f"'{category}' error loading settings.")
     
     async def handle_setting_edit(self, update_or_query, category: str, key: str):
-        """Belirli bir ayarı düzenle"""
+        """Edit specific setting"""
         try:
             category_settings = self.settings_manager.get_category_settings(category)
             
@@ -184,11 +184,11 @@ Select a category below to view and modify settings:
                 )
                 
                 if success:
-                    status = "✅ Aktif" if new_value else "❌ Pasif"
+                    status = "✅ Active" if new_value else "❌ Inactive"
                     message = f"✅ **{description}** updated!\n\nNew value: {status}"
                     
                     if restart_required:
-                        message += "\n\n🔄 **Uyarı:** Bot must be restarted for this change!"
+                        message += "\n\n🔄 **Warning:** Bot must be restarted for this change!"
                 else:
                     message = f"❌ **{description}** could not be updated!"
                 
@@ -239,7 +239,7 @@ Enter new value or type 'cancel' to cancel.
             await self._send_error_message(update_or_query, "Error editing setting.")
     
     async def handle_setting_value_input(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Kullanıcının girdiği setting değerini işle"""
+        """Process user input for setting value"""
         try:
             user_id = update.effective_user.id
             text = update.message.text.strip()
@@ -315,7 +315,7 @@ Enter new value or type 'cancel' to cancel.
                 message += f"New value: `{new_value}`"
                 
                 if restart_required:
-                    message += "\n\n🔄 **Uyarı:** Bot must be restarted for this change!"
+                    message += "\n\n🔄 **Warning:** Bot must be restarted for this change!"
                 
                 keyboard = [
                     [InlineKeyboardButton("⬅️ Back to Settings", callback_data=f"settings_category_{category}")]
@@ -344,7 +344,7 @@ Enter new value or type 'cancel' to cancel.
             await update.message.reply_text("❌ An unexpected error occurred!")
     
     async def handle_settings_export(self, update_or_query):
-        """Ayarları export et"""
+        """Export settings"""
         try:
             exported_settings = self.settings_manager.export_settings()
             
@@ -419,7 +419,7 @@ To import use `/settings` → Import.
             await self._send_error_message(update_or_query, "Error showing setting status.")
     
     async def handle_reset_category(self, update_or_query, category: str):
-        """Kategori ayarlarını sıfırla"""
+        """Reset category settings"""
         try:
             user_id = self._get_user_id(update_or_query)
             category_settings = self.settings_manager.get_category_settings(category)
