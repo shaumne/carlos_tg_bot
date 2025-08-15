@@ -422,8 +422,27 @@ class CryptoExchangeAPI:
             return None
     
     def format_quantity(self, symbol: str, quantity: float) -> str:
-        """Quantity formatını coin'e göre ayarla"""
-        base_currency = symbol.split('_')[0]
+        """Quantity formatını coin'e göre ayarla ve minimum quantity kontrolü yap"""
+        base_currency = symbol.split('_')[0] if '_' in symbol else symbol.replace('USDT', '').replace('/', '').strip()
+        
+        # Minimum quantity gereksinimleri (Crypto.com Exchange)
+        min_quantities = {
+            "BTC": 0.000001,   # 1e-6
+            "ETH": 0.00001,    # 1e-5  
+            "SUI": 0.01,       # 1e-2
+            "SOL": 0.001,      # 1e-3
+            "ADA": 0.1,        # 1e-1
+            "DOT": 0.01,       # 1e-2
+            "BONK": 1000,      # Whole numbers
+            "SHIB": 1000,      # Whole numbers 
+            "PEPE": 1000,      # Whole numbers
+        }
+        
+        # Check minimum quantity
+        min_qty = min_quantities.get(base_currency, 0.01)  # Default minimum
+        if quantity < min_qty:
+            logger.warning(f"Quantity {quantity} below minimum {min_qty} for {base_currency}")
+            return "0"  # Return invalid quantity
         
         # Decimal precision'ı coin'e göre ayarla
         if base_currency in ["BTC", "ETH"]:
@@ -675,12 +694,12 @@ class CryptoExchangeAPI:
                 logger.error(f"Invalid formatted quantity: {formatted_quantity} (original: {quantity})")
                 return None
             
-            # Create sell order params
+            # Create sell order params (ensure quantity is string as per API requirements)
             params = {
                 "instrument_name": formatted_instrument,
                 "side": "SELL",
                 "type": "MARKET",
-                "quantity": formatted_quantity
+                "quantity": str(formatted_quantity)  # API requires string format
             }
             
             logger.info(f"Placing market sell order: SELL {formatted_quantity} {formatted_instrument}")
@@ -731,7 +750,7 @@ class CryptoExchangeAPI:
                 "instrument_name": instrument_name,
                 "side": "SELL",
                 "type": "MARKET",
-                "quantity": formatted_quantity
+                "quantity": str(formatted_quantity)  # API requires string format
             }
             
             response = self.send_request("private/create-order", params)
@@ -801,7 +820,7 @@ class CryptoExchangeAPI:
                 "side": side.upper(),
                 "type": "LIMIT",
                 "price": str(price),
-                "quantity": formatted_quantity
+                "quantity": str(formatted_quantity)  # API requires string format
             }
             
             response = self.send_request("private/create-order", params)
@@ -1004,12 +1023,12 @@ class CryptoExchangeAPI:
             # Get available trading pairs
             available_pairs = self.get_trading_pairs()
             
-            # Common format patterns to try
+            # Common format patterns to try (Crypto.com preferred format first)
             possible_formats = [
-                f"{base_currency}USDT",      # BTCUSDT
+                f"{base_currency}-USDT",     # BTC-USDT (Crypto.com preferred)
                 f"{base_currency}_USDT",     # BTC_USDT  
+                f"{base_currency}USDT",      # BTCUSDT
                 f"{base_currency}/USDT",     # BTC/USDT
-                f"{base_currency}-USDT",     # BTC-USDT (might be used)
             ]
             
             # Check if any format matches available pairs
