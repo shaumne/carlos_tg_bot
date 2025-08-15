@@ -1905,11 +1905,12 @@ Will appear here after trading.
             # Save to database
             signal_id = self.db.save_signal(
                 symbol=symbol,
+                formatted_symbol=f"{symbol}_USDT",
                 signal_type=action,
-                strength='medium',
                 price=current_price,
+                confidence=0.8,  # Default confidence for test signals
                 indicators=test_signal['indicators'],
-                reasoning=test_signal['reasoning']
+                notes="; ".join(test_signal['reasoning']) if test_signal['reasoning'] else "Test signal"
             )
             
             # Send notification

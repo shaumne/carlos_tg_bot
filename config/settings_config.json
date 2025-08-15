@@ -1,0 +1,327 @@
+{
+  "trading": {
+    "title": "💰 Trading Settings",
+    "description": "Configure trading parameters and risk management",
+    "settings": {
+      "trade_amount": {
+        "title": "Trade Amount (USDT)",
+        "description": "Amount in USDT to use per trade",
+        "type": "number",
+        "default": 10.0,
+        "min": 1.0,
+        "max": 10000.0,
+        "step": 1.0,
+        "restart_required": false,
+        "validation": "Must be between 1 and 10000 USDT"
+      },
+      "max_positions": {
+        "title": "Max Open Positions",
+        "description": "Maximum number of open positions at once",
+        "type": "integer",
+        "default": 5,
+        "min": 1,
+        "max": 20,
+        "step": 1,
+        "restart_required": false,
+        "validation": "Must be between 1 and 20"
+      },
+      "risk_per_trade": {
+        "title": "Risk Per Trade (%)",
+        "description": "Percentage of portfolio to risk per trade",
+        "type": "number",
+        "default": 2.0,
+        "min": 0.1,
+        "max": 10.0,
+        "step": 0.1,
+        "restart_required": false,
+        "validation": "Must be between 0.1% and 10%"
+      },
+      "enable_auto_trading": {
+        "title": "Enable Auto Trading",
+        "description": "Automatically execute trades based on signals",
+        "type": "boolean",
+        "default": false,
+        "restart_required": false,
+        "validation": "Enable/disable automatic trade execution"
+      },
+      "stop_loss_percentage": {
+        "title": "Default Stop Loss (%)",
+        "description": "Default stop loss percentage below entry price",
+        "type": "number",
+        "default": 5.0,
+        "min": 1.0,
+        "max": 20.0,
+        "step": 0.5,
+        "restart_required": false,
+        "validation": "Must be between 1% and 20%"
+      },
+      "take_profit_percentage": {
+        "title": "Default Take Profit (%)",
+        "description": "Default take profit percentage above entry price",
+        "type": "number",
+        "default": 10.0,
+        "min": 2.0,
+        "max": 50.0,
+        "step": 1.0,
+        "restart_required": false,
+        "validation": "Must be between 2% and 50%"
+      }
+    }
+  },
+  "technical": {
+    "title": "📊 Technical Analysis",
+    "description": "Configure technical indicator parameters",
+    "settings": {
+      "rsi_period": {
+        "title": "RSI Period",
+        "description": "Number of periods for RSI calculation",
+        "type": "integer",
+        "default": 14,
+        "min": 5,
+        "max": 50,
+        "step": 1,
+        "restart_required": false,
+        "validation": "Must be between 5 and 50"
+      },
+      "rsi_oversold": {
+        "title": "RSI Oversold Level",
+        "description": "RSI level considered oversold (buy signal)",
+        "type": "number",
+        "default": 30.0,
+        "min": 10.0,
+        "max": 40.0,
+        "step": 1.0,
+        "restart_required": false,
+        "validation": "Must be between 10 and 40"
+      },
+      "rsi_overbought": {
+        "title": "RSI Overbought Level",
+        "description": "RSI level considered overbought (sell signal)",
+        "type": "number",
+        "default": 70.0,
+        "min": 60.0,
+        "max": 90.0,
+        "step": 1.0,
+        "restart_required": false,
+        "validation": "Must be between 60 and 90"
+      },
+      "ema_fast_period": {
+        "title": "Fast EMA Period",
+        "description": "Period for fast EMA calculation",
+        "type": "integer",
+        "default": 12,
+        "min": 5,
+        "max": 30,
+        "step": 1,
+        "restart_required": false,
+        "validation": "Must be between 5 and 30"
+      },
+      "ema_slow_period": {
+        "title": "Slow EMA Period", 
+        "description": "Period for slow EMA calculation",
+        "type": "integer",
+        "default": 26,
+        "min": 10,
+        "max": 100,
+        "step": 1,
+        "restart_required": false,
+        "validation": "Must be between 10 and 100"
+      },
+      "sma_period": {
+        "title": "SMA Period",
+        "description": "Period for Simple Moving Average",
+        "type": "integer",
+        "default": 20,
+        "min": 5,
+        "max": 200,
+        "step": 1,
+        "restart_required": false,
+        "validation": "Must be between 5 and 200"
+      }
+    }
+  },
+  "notifications": {
+    "title": "🔔 Notifications",
+    "description": "Configure notification preferences",
+    "settings": {
+      "notify_signals": {
+        "title": "Signal Notifications",
+        "description": "Receive notifications for new trading signals",
+        "type": "boolean",
+        "default": true,
+        "restart_required": false,
+        "validation": "Enable/disable signal notifications"
+      },
+      "notify_trades": {
+        "title": "Trade Notifications",
+        "description": "Receive notifications for executed trades",
+        "type": "boolean",
+        "default": true,
+        "restart_required": false,
+        "validation": "Enable/disable trade notifications"
+      },
+      "notify_errors": {
+        "title": "Error Notifications",
+        "description": "Receive notifications for system errors",
+        "type": "boolean",
+        "default": true,
+        "restart_required": false,
+        "validation": "Enable/disable error notifications"
+      },
+      "notification_level": {
+        "title": "Notification Level",
+        "description": "Minimum level for notifications",
+        "type": "choice",
+        "choices": ["ALL", "IMPORTANT", "CRITICAL"],
+        "default": "IMPORTANT",
+        "restart_required": false,
+        "validation": "Choose notification verbosity level"
+      }
+    }
+  },
+  "monitoring": {
+    "title": "📈 Monitoring",
+    "description": "Configure monitoring and analysis intervals",
+    "settings": {
+      "analysis_interval": {
+        "title": "Analysis Interval (seconds)",
+        "description": "How often to analyze market data",
+        "type": "integer",
+        "default": 60,
+        "min": 30,
+        "max": 3600,
+        "step": 30,
+        "restart_required": false,
+        "validation": "Must be between 30 and 3600 seconds"
+      },
+      "price_check_interval": {
+        "title": "Price Check Interval (seconds)",
+        "description": "How often to check current prices",
+        "type": "integer", 
+        "default": 30,
+        "min": 10,
+        "max": 300,
+        "step": 10,
+        "restart_required": false,
+        "validation": "Must be between 10 and 300 seconds"
+      },
+      "portfolio_update_interval": {
+        "title": "Portfolio Update Interval (seconds)",
+        "description": "How often to update portfolio data",
+        "type": "integer",
+        "default": 120,
+        "min": 60,
+        "max": 1800,
+        "step": 60,
+        "restart_required": false,
+        "validation": "Must be between 60 and 1800 seconds"
+      },
+      "health_check_interval": {
+        "title": "Health Check Interval (seconds)",
+        "description": "How often to perform system health checks",
+        "type": "integer",
+        "default": 300,
+        "min": 60,
+        "max": 3600,
+        "step": 60,
+        "restart_required": false,
+        "validation": "Must be between 60 and 3600 seconds"
+      }
+    }
+  },
+  "system": {
+    "title": "⚙️ System Settings",
+    "description": "Configure system behavior and limits",
+    "settings": {
+      "log_level": {
+        "title": "Log Level",
+        "description": "Minimum logging level",
+        "type": "choice",
+        "choices": ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        "default": "INFO",
+        "restart_required": true,
+        "validation": "Choose logging verbosity"
+      },
+      "rate_limit_requests_per_minute": {
+        "title": "API Rate Limit (req/min)",
+        "description": "Maximum API requests per minute",
+        "type": "integer",
+        "default": 100,
+        "min": 10,
+        "max": 1000,
+        "step": 10,
+        "restart_required": true,
+        "validation": "Must be between 10 and 1000"
+      },
+      "database_backup_interval": {
+        "title": "Database Backup Interval (hours)",
+        "description": "How often to backup database",
+        "type": "integer",
+        "default": 24,
+        "min": 1,
+        "max": 168,
+        "step": 1,
+        "restart_required": false,
+        "validation": "Must be between 1 and 168 hours"
+      },
+      "max_log_file_size_mb": {
+        "title": "Max Log File Size (MB)",
+        "description": "Maximum size of log files before rotation",
+        "type": "integer",
+        "default": 10,
+        "min": 1,
+        "max": 100,
+        "step": 1,
+        "restart_required": true,
+        "validation": "Must be between 1 and 100 MB"
+      }
+    }
+  },
+  "security": {
+    "title": "🔒 Security Settings",
+    "description": "Configure security and access control",
+    "settings": {
+      "session_timeout_minutes": {
+        "title": "Session Timeout (minutes)",
+        "description": "User session timeout in minutes",
+        "type": "integer",
+        "default": 60,
+        "min": 15,
+        "max": 1440,
+        "step": 15,
+        "restart_required": false,
+        "validation": "Must be between 15 and 1440 minutes"
+      },
+      "max_failed_attempts": {
+        "title": "Max Failed Login Attempts",
+        "description": "Maximum failed login attempts before lockout",
+        "type": "integer",
+        "default": 5,
+        "min": 3,
+        "max": 20,
+        "step": 1,
+        "restart_required": false,
+        "validation": "Must be between 3 and 20 attempts"
+      },
+      "enable_audit_log": {
+        "title": "Enable Audit Logging",
+        "description": "Log all user actions for security",
+        "type": "boolean",
+        "default": true,
+        "restart_required": false,
+        "validation": "Enable/disable security audit logging"
+      },
+      "api_key_rotation_days": {
+        "title": "API Key Rotation (days)",
+        "description": "Remind to rotate API keys every N days",
+        "type": "integer",
+        "default": 90,
+        "min": 30,
+        "max": 365,
+        "step": 30,
+        "restart_required": false,
+        "validation": "Must be between 30 and 365 days"
+      }
+    }
+  }
+}

@@ -26,75 +26,133 @@ class SettingsHandlers:
         self.bot = telegram_bot
         self.user_sessions = {}  # Store user conversation state
         
-        logger.info("Settings handlers initialized")
+        # Get settings configuration from manager
+        self.settings_config = dynamic_settings_manager.get_user_configurable_settings()
+        
+        logger.info("Settings handlers initialized with JSON configuration")
     
     async def handle_settings_main(self, update_or_query, context=None):
         """Main settings menu"""
         try:
-            settings_text = """
-⚙️ **Bot Settings**
-
-Select a category below to view and modify settings:
-
-🔧 **Available Categories:**
-• 💰 **Trading** - Trade amount, risk settings
-• 📊 **Technical Analysis** - RSI, ATR parameters  
-• 🔔 **Notifications** - Which events to notify
-• ⚙️ **System** - General system settings
-
-⚠️ **Note:** Some settings may require restart after changes.
-            """
+            # Build dynamic settings menu from JSON config
+            settings_text = "⚙️ **Bot Settings Panel**\n\n"
+            settings_text += "Choose a category to configure:\n\n"
             
-            # Category selection keyboard
-            keyboard = [
-                [
-                    InlineKeyboardButton("💰 Trading", callback_data="settings_category_trading"),
-                    InlineKeyboardButton("📊 Technical", callback_data="settings_category_technical")
-                ],
-                [
-                    InlineKeyboardButton("🔔 Notifications", callback_data="settings_category_notifications"),
-                    InlineKeyboardButton("⚙️ System", callback_data="settings_category_system")
-                ],
-                [
-                    InlineKeyboardButton("📁 Export", callback_data="settings_export"),
-                    InlineKeyboardButton("📥 Import", callback_data="settings_import")
-                ],
-                [
-                    InlineKeyboardButton("🔄 Reset to Default", callback_data="settings_reset_all"),
-                    InlineKeyboardButton("🏠 Main Menu", callback_data="main_menu")
-                ]
-            ]
+            # Create category buttons from JSON config
+            keyboard = []
+            for category, cat_config in self.settings_config.items():
+                title = cat_config.get('title', category.title())
+                description = cat_config.get('description', '')
+                button_text = f"{title}"
+                if description:
+                    settings_text += f"• **{title}**\n  {description}\n\n"
+                
+                keyboard.append([InlineKeyboardButton(button_text, callback_data=f"settings_category_{category}")])
+            
+            # Add utility buttons
+            keyboard.extend([
+                [InlineKeyboardButton("📊 Settings Status", callback_data="settings_status")],
+                [InlineKeyboardButton("📤 Export Settings", callback_data="settings_export")],
+                [InlineKeyboardButton("🔄 Reset Category", callback_data="settings_reset_menu")],
+                [InlineKeyboardButton("🏠 Main Menu", callback_data="main_menu")]
+            ])
+            
             reply_markup = InlineKeyboardMarkup(keyboard)
             
-            await self._send_or_edit_message(update_or_query, settings_text, reply_markup)
-            
+            message = settings_text
+            if hasattr(update_or_query, 'edit_message_text'):
+                await update_or_query.edit_message_text(message, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
+            else:
+                await update_or_query.message.reply_text(message, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
+                
         except Exception as e:
-            logger.error(f"Error in settings main: {str(e)}")
-            await self._send_error_message(update_or_query, "Error loading settings menu.")
+            logger.error(f"Error showing settings main menu: {str(e)}")
+            error_message = "❌ Error loading settings menu!"
+            if hasattr(update_or_query, 'edit_message_text'):
+                await update_or_query.edit_message_text(error_message)
+            else:
+                await update_or_query.message.reply_text(error_message)
     
     async def handle_settings_category(self, update_or_query, category: str):
         """Show specific category settings"""
         try:
-            category_settings = self.settings_manager.get_category_settings(category)
-            
-            if not category_settings:
+            # Get category configuration from JSON
+            cat_config = self.settings_config.get(category)
+            if not cat_config:
                 await self._send_error_message(update_or_query, f"Category '{category}' not found!")
                 return
+                
+            title = cat_config.get('title', category.title())
+            description = cat_config.get('description', '')
+            settings = cat_config.get('settings', {})
             
-            # Category title mapping
-            category_titles = {
-                'trading': '💰 Trading Settings',
-                'technical': '📊 Technical Analysis Settings', 
-                'notifications': '🔔 Notification Settings',
-                'system': '⚙️ System Settings'
-            }
+            if not settings:
+                await self._send_error_message(update_or_query, f"No settings found for category '{category}'!")
+                return
             
-            title = category_titles.get(category, f"{category.title()} Settings")
+            # Build settings display
             settings_text = f"**{title}**\n\n"
+            if description:
+                settings_text += f"{description}\n\n"
             
-            # Show current settings
-            for key, setting_info in category_settings.items():
-                value = setting_info['value']
+            # Show current values
+            for key, setting_config in settings.items():
+                current_value = self.settings_manager.get_setting(category, key)
+                setting_title = setting_config.get('title', key)
+                setting_desc = setting_config.get('description', '')
+                restart_required = setting_config.get('restart_required', False)
+                
+                # Format value display
+                if setting_config.get('type') == 'boolean':
+                    value_display = "✅ Enabled" if current_value else "❌ Disabled"
+                elif setting_config.get('type') in ['number', 'integer']:
+                    min_val = setting_config.get('min')
+                    max_val = setting_config.get('max')
+                    range_info = f" (Range: {min_val}-{max_val})" if min_val is not None and max_val is not None else ""
+                    value_display = f"{current_value}{range_info}"
+                else:
+                    value_display = str(current_value)
+                
+                restart_indicator = " 🔄" if restart_required else ""
+                
+                settings_text += f"🔧 **{setting_title}**{restart_indicator}\n"
+                settings_text += f"   {setting_desc}\n"
+                settings_text += f"   Current: `{value_display}`\n\n"
+            
+            # Add restart note if needed
+            restart_settings = [k for k, v in settings.items() if v.get('restart_required', False)]
+            if restart_settings:
+                settings_text += "\n🔄 = Requires restart to take effect"
+            
+            # Create keyboard
+            keyboard = []
+            
+            # Setting edit buttons
+            for key, setting_config in settings.items():
+                setting_title = setting_config.get('title', key)
+                button_text = f"✏️ {setting_title}"
+                keyboard.append([InlineKeyboardButton(button_text, callback_data=f"settings_edit_{category}_{key}")])
+            
+            # Navigation buttons
+            keyboard.extend([
+                [InlineKeyboardButton("🔄 Reset Category", callback_data=f"settings_reset_category_{category}")],
+                [InlineKeyboardButton("⬅️ Back to Settings", callback_data="settings_main")]
+            ])
+            
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            if hasattr(update_or_query, 'edit_message_text'):
+                await update_or_query.edit_message_text(settings_text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
+            else:
+                await update_or_query.message.reply_text(settings_text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
+        
+        except Exception as e:
+            logger.error(f"Error showing category {category}: {str(e)}")
+            error_message = f"❌ Error loading {category} settings!"
+            if hasattr(update_or_query, 'edit_message_text'):
+                await update_or_query.edit_message_text(error_message)
+            else:
+                await update_or_query.message.reply_text(error_message)
                 description = setting_info['description']
                 setting_type = setting_info['type']
                 restart_required = setting_info.get('restart_required', False)
@@ -303,6 +361,17 @@ Enter new value or type 'cancel' to cancel.
                         f"Try again or type 'cancel' to cancel."
                     )
                     return
+            
+            # Validate with JSON-based validation
+            if not self.settings_manager.validate_setting_value(category, key, new_value):
+                await update.message.reply_text(
+                    f"❌ Invalid value for {key}! Please check the allowed range/format.",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("⬅️ Back", callback_data=f"settings_category_{category}")]
+                    ])
+                )
+                del self.user_sessions[user_id]
+                return
             
             # Save setting
             success = self.settings_manager.set_setting(category, key, new_value, user_id)
