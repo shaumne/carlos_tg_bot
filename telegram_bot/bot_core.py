@@ -2044,9 +2044,41 @@ Will appear here after trading.
                     return False
                     
             elif action.upper() == "SELL":
-                # TODO: Implement sell logic - need to check existing positions
-                logger.warning(f"SELL execution not yet implemented for {exchange_symbol}")
-                return False
+                # Check if we have an existing position to sell
+                if not hasattr(self, 'active_positions'):
+                    self.active_positions = {}
+                
+                # Get current balance of the base currency
+                base_currency = exchange_symbol.split('_')[0] if '_' in exchange_symbol else exchange_symbol.replace('USDT', '')
+                balance = self.exchange_api.get_balance(base_currency)
+                
+                if balance and balance > 0:
+                    logger.info(f"Executing SELL order for {exchange_symbol}, balance: {balance}")
+                    
+                    # Execute sell order
+                    order_id = self.exchange_api.sell_coin(exchange_symbol, balance * 0.99)  # Use 99% to avoid precision errors
+                    
+                    if order_id:
+                        logger.info(f"✅ SELL order placed for {exchange_symbol} with ID: {order_id}")
+                        
+                        # Send success notification
+                        for user_id in self.config.telegram.authorized_users:
+                            try:
+                                await self.application.bot.send_message(
+                                    chat_id=user_id,
+                                    text=f"✅ SELL order placed!\n📊 Symbol: {exchange_symbol}\n📈 Amount: {balance:.6f} {base_currency}\n🆔 Order ID: {order_id}",
+                                    parse_mode=ParseMode.HTML
+                                )
+                            except Exception as e:
+                                logger.error(f"Error sending SELL notification to {user_id}: {str(e)}")
+                        
+                        return True
+                    else:
+                        logger.error(f"❌ SELL order failed for {exchange_symbol}")
+                        return False
+                else:
+                    logger.warning(f"No {base_currency} balance available for selling")
+                    return False
                 
             return False
             
