@@ -1,67 +1,80 @@
-# 🤖 Telegram Trading Bot
+# 🤖 Carlos Telegram Trading Bot
 
-Production-ready cryptocurrency trading bot that operates entirely through Telegram. Complete replacement for Google Sheets-based trading systems with advanced technical analysis, automated trading, and comprehensive portfolio management.
+Advanced cryptocurrency trading bot that operates entirely through Telegram with direct Crypto.com Exchange integration. Features dynamic settings management, real-time portfolio tracking, comprehensive technical analysis, and professional-grade trading capabilities.
 
 ## ✨ Features
 
 ### 🔥 Core Features
 - **📊 Real-time Technical Analysis** - RSI, ATR, MACD, Bollinger Bands, Stochastic
 - **🤖 Automated Trading** - Buy/sell execution with risk management
-- **📱 Telegram Dashboard** - Complete control through interactive chat interface  
-- **💰 Portfolio Management** - Live P&L tracking and position monitoring
+- **📱 Interactive Telegram Dashboard** - Complete control through intuitive chat interface  
+- **💰 Live Portfolio Management** - Real-time balance, P&L, and position tracking
+- **📋 Active Orders & Positions** - Monitor open orders and active positions
+- **📜 Exchange History** - Direct trade and order history from Crypto.com
 - **🔔 Smart Notifications** - Real-time alerts for signals, trades, and system events
-- **🛡️ Risk Management** - ATR-based stop loss, take profit, and position sizing
+- **🛡️ Advanced Risk Management** - ATR-based stop loss, take profit, and position sizing
 
 ### 💡 Advanced Features
+- **⚙️ Dynamic Settings Management** - JSON-based runtime configuration system
 - **👥 Multi-user Support** - Authorization system with admin controls
 - **🔐 Security First** - Encrypted credentials, rate limiting, audit logs
-- **📈 Signal Generation** - AI-powered technical analysis with confidence scoring
+- **📈 AI-powered Signal Generation** - Technical analysis with confidence scoring
 - **🎯 Precision Trading** - Optimized quantity formatting for different cryptocurrencies
-- **📊 Performance Analytics** - Detailed trading statistics and health monitoring
-- **💾 Data Persistence** - SQLite database with automatic backups
+- **📊 Real-time Performance Analytics** - Detailed trading statistics and health monitoring
+- **💾 Database & Exchange Integration** - Seamless data flow between local DB and exchange
 
-### 🎨 User Experience
-- **Interactive Menus** - Button-based navigation for ease of use
-- **Real-time Updates** - Live price feeds and portfolio monitoring
-- **Conversation Flow** - Natural chat interactions for complex operations
-- **Admin Panel** - Advanced system management for administrators
-- **Health Monitoring** - Automatic system health checks and alerts
+### 🎨 Enhanced User Experience
+- **🔄 Real-time Data Sync** - All data directly from Crypto.com Exchange API
+- **📱 Interactive Button Menus** - Intuitive navigation with inline keyboards
+- **⚡ Live Updates** - Refresh portfolio, orders, and positions with one click
+- **💬 Conversation Flows** - Natural chat interactions for complex operations
+- **👑 Admin Panel** - Advanced system management for administrators
+- **🏥 Health Monitoring** - Comprehensive system health checks and diagnostics
 
-## 🏗️ Architecture
+## 🏗️ Enhanced Architecture
 
 ```
 ┌─────────────────────────────────────────────┐
 │           TELEGRAM INTERFACE               │
 ├─────────────────────────────────────────────┤
 │  🤖 Bot Core (telegram_bot/bot_core.py)    │
-│  ├── Command Handlers                      │
-│  ├── Callback Queries                      │
-│  ├── Interactive Menus                     │
-│  └── User Session Management               │
+│  ├── Command Handlers (/start, /portfolio) │
+│  ├── Interactive Callback Queries          │
+│  ├── Dynamic Settings UI                   │
+│  ├── Active Orders & Positions Display     │
+│  └── Message Handler & Session Management  │
+├─────────────────────────────────────────────┤
+│  ⚙️ Settings System (telegram_bot/settings_handlers.py) │
+│  ├── JSON-based Configuration              │
+│  ├── Runtime Settings Updates              │
+│  ├── Input Validation & Type Conversion    │
+│  └── Hot-reload Configuration              │
 ├─────────────────────────────────────────────┤
 │  📊 Signal Engine (signals/signal_engine.py) │
-│  ├── Technical Analysis                    │
-│  ├── Market Data Provider                  │
-│  ├── Signal Generation                     │
-│  └── Risk Assessment                       │
+│  ├── Multi-indicator Technical Analysis    │
+│  ├── Real-time Market Data (CCXT)          │
+│  ├── Signal Generation & Confidence        │
+│  └── Risk Assessment & Filtering           │
 ├─────────────────────────────────────────────┤
 │  💱 Exchange API (exchange/crypto_exchange_api.py) │
-│  ├── Crypto.com Integration               │
-│  ├── Order Management                      │
-│  ├── Balance Tracking                      │
-│  └── Trade Execution                       │
+│  ├── Crypto.com Direct Integration         │
+│  ├── Order Management (Market/Limit)       │
+│  ├── Real-time Balance & Portfolio         │
+│  ├── Trade History & Open Orders           │
+│  ├── Position Tracking & P&L               │
+│  └── Quantity Formatting & Validation      │
 ├─────────────────────────────────────────────┤
 │  🗄️ Database Layer (database/database_manager.py) │
-│  ├── SQLite Storage                        │
-│  ├── Trade History                         │
-│  ├── Signal Archive                        │
-│  └── User Management                       │
+│  ├── SQLite Storage & Schema               │
+│  ├── Settings Persistence                  │
+│  ├── Signal Archive & Audit Logs           │
+│  └── User Management & Authorization       │
 ├─────────────────────────────────────────────┤
-│  ⚙️ Configuration (config/config.py)       │
-│  ├── Environment Variables                 │
-│  ├── Settings Management                   │
-│  ├── Security Configuration               │
-│  └── Validation System                     │
+│  ⚙️ Dynamic Configuration (config/)        │
+│  ├── Environment Variables (.env)          │
+│  ├── JSON Settings Schema                  │
+│  ├── Runtime Settings Manager              │
+│  └── Validation & Type System              │
 └─────────────────────────────────────────────┘
 ```
 
@@ -78,8 +91,8 @@ Production-ready cryptocurrency trading bot that operates entirely through Teleg
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/telegram-trading-bot.git
-cd telegram-trading-bot
+git clone https://github.com/shaumne/carlos_tg_bot.git
+cd carlos_tg_bot
 
 # Install dependencies
 pip install -r requirements.txt
@@ -142,61 +155,84 @@ python main.py
 # ✅ Telegram Trading Bot started successfully!
 ```
 
-## 📱 Telegram Commands
+## 📱 Telegram Commands & Interface
 
 ### 🔰 Basic Commands
-- `/start` - Initialize bot and show welcome message
-- `/help` - Show all available commands
-- `/status` - Display bot status and system information
-- `/health` - Perform system health check
+- `/start` - Initialize bot and show welcome message with main menu
+- `/help` - Show all available commands and features
+- `/status` - Display bot status, system information, and health metrics
+- `/health` - Perform comprehensive system health check
 
-### 💰 Portfolio & Trading  
-- `/portfolio` - View active positions and P&L
-- `/balance` - Check exchange account balances
-- `/history` - View trading history and statistics
-- `/signals` - Display recent trading signals
+### 💰 Portfolio & Trading Management
+- `/portfolio` - **Enhanced portfolio view** with balances, open orders, and positions
+- `/balance` - Check live exchange account balances (all currencies)
+- `/history` - **Direct exchange history** - trades and orders from Crypto.com
+- `/signals` - Display recent trading signals with technical analysis
 
-### 🔧 Coin Management
-- `/watchlist` - Show tracked cryptocurrencies
+### 🔧 Coin & Watchlist Management
+- `/watchlist` - Show tracked cryptocurrencies with analysis
 - `/add_coin [SYMBOL]` - Add coin to watchlist (e.g., `/add_coin BTC`)
 - `/remove_coin [SYMBOL]` - Remove coin from watchlist
-- `/analyze [SYMBOL]` - Perform technical analysis on specific coin
+- `/analyze [SYMBOL]` - Perform detailed technical analysis on specific coin
 
-### ⚙️ Settings & Admin
-- `/settings` - View and modify bot configuration
-- `/admin` - Admin panel (admin users only)
-- `/logs` - View system logs (admin users only)
+### ⚙️ Dynamic Settings & Configuration
+- `/settings` - **Interactive settings panel** with JSON-based configuration
+  - Real-time settings updates (no restart required for most settings)
+  - Input validation and type conversion
+  - Settings categories: Trading, Technical, Notifications, Security
+
+### 👑 Admin & System Management
+- `/admin` - Comprehensive admin panel (admin users only)
+- `/logs` - View system logs with filtering (admin users only)
 - `/backup` - Create database backup (admin users only)
 
-### 🎮 Interactive Features
-- **Button Menus** - Use inline keyboards for navigation
-- **Real-time Updates** - Refresh data with button clicks
-- **Conversation Flows** - Natural chat for adding coins
-- **Quick Actions** - One-click portfolio operations
+### 🎮 Enhanced Interactive Features
+- **📋 Active Orders Panel** - View and monitor all open orders with fill status
+- **📈 Positions Panel** - Real-time position tracking with P&L calculations
+- **🔄 Live Refresh Buttons** - Update data from exchange with one click
+- **⚙️ Settings Conversation Flow** - Natural chat for configuration changes
+- **📱 Inline Keyboards** - Intuitive button-based navigation
+- **💬 Message Handlers** - Smart input processing for different contexts
 
 ## 📊 Dashboard Features
 
-### 💹 Portfolio View
+### 💹 Enhanced Portfolio Dashboard
 ```
 💰 Portfolio Report
 
-🟢 BTC_USDT
-• Entry: $45,230.50
-• Current: $46,120.30  
-• Quantity: 0.000221
-• P&L: $0.20 (+1.97%)
-• TP: $47,000.00
-• SL: $44,500.00
+💵 USDT Balance: $125.50
 
-🔴 ETH_USDT  
-• Entry: $2,845.20
-• Current: $2,789.50
-• Quantity: 0.0035
-• P&L: -$0.19 (-1.96%)
-• TP: $2,950.00
-• SL: $2,750.00
+🪙 Crypto Holdings (3)
 
-🟢 Total P&L: $0.01
+💎 BTC
+• Available: 0.002150
+• Total: 0.002150
+• Locked: 0.000000
+• Price: $45,230.50
+• Value: $97.25
+
+💎 ETH
+• Available: 0.035000
+• Total: 0.035000
+• Locked: 0.000000
+• Price: $2,845.20
+• Value: $99.58
+
+💰 Total Portfolio Value: $322.33
+
+📋 Open Orders (2)
+🟢 BTC-USDT 🟡
+• Type: BUY LIMIT
+• Price: $44,500.00
+• Quantity: 0.002000
+• Filled: 0.000000 (0.0%)
+
+📊 Positions (1)
+🟢 ETH-USDT
+• Quantity: 0.035000
+• Cost: $99.58
+• Open P&L: $2.15
+• Session P&L: $0.75
 ```
 
 ### 📈 Signal Analysis
@@ -227,27 +263,49 @@ python main.py
 • Volume: 125,430
 ```
 
-### ⚙️ Settings Panel
+### ⚙️ Dynamic Settings Management Panel
 ```
-⚙️ Bot Settings
+⚙️ Bot Settings Panel
+
+Choose a category to configure:
+
+💰 Trading Settings
+Configure trading parameters and risk management
+
+📊 Technical Analysis
+Technical analysis and signal generation settings
+
+🔔 Notifications
+Alert and notification preferences
+
+🔒 Security
+Security and access control settings
+
+📊 Settings Status | 📤 Export Settings | 🔄 Reset Category
+
+---
 
 💰 Trading Settings:
-• Trade Amount: 10.0 USDT
-• Max Positions: 5
-• Risk/Trade: 2.0%
-• Auto Trading: ❌
-• Paper Trading: ✅
+✅ Trade Amount: 25.0 USDT (Runtime Update)
+✅ Max Positions: 3 (Runtime Update)  
+✅ Risk Per Trade: 1.5% (Runtime Update)
+✅ Auto Trading: ❌ (Runtime Update)
+✅ Stop Loss: 3.0% (Runtime Update)
+✅ Take Profit: 8.0% (Runtime Update)
+
+📊 Technical Analysis:
+✅ RSI Period: 14 (Runtime Update)
+✅ RSI Oversold: 25.0 (Runtime Update)
+✅ RSI Overbought: 75.0 (Runtime Update)
+✅ ATR Period: 14 (Runtime Update)
+✅ Signal Confidence: 65% (Runtime Update)
 
 🔔 Notifications:
-• Signals: ✅
-• Trades: ✅
-• Errors: ✅
-• System Events: ✅
+✅ Enable Signals: ✅ (Runtime Update)
+✅ Enable Trades: ✅ (Runtime Update)
+✅ Enable Errors: ✅ (Runtime Update)
 
-🔒 Security:
-• Session Timeout: 3600s
-• Rate Limiting: ✅
-• Audit Log: ✅
+Note: Settings marked with (Runtime Update) apply immediately without restart
 ```
 
 ## 🛡️ Security Features
@@ -382,30 +440,38 @@ BACKUP_ENABLED=true           # Enable automatic backups
 
 ## 🔧 Development
 
-### 🛠️ Project Structure
+### 🛠️ Enhanced Project Structure
 ```
-telegram-trading-bot/
-├── 📁 config/                 # Configuration management
-│   └── config.py             # Main config manager
-├── 📁 database/               # Database layer
-│   ├── schema.sql            # Database schema
-│   └── database_manager.py   # Database operations
-├── 📁 exchange/               # Exchange integration
-│   └── crypto_exchange_api.py # Crypto.com API adapter
-├── 📁 signals/                # Signal generation
-│   └── signal_engine.py      # Technical analysis engine
-├── 📁 telegram_bot/           # Telegram bot core
-│   └── bot_core.py           # Main bot implementation
-├── 📁 utils/                  # Utility functions
-│   └── logging_setup.py      # Logging configuration
-├── 📁 data/                   # Database files
-├── 📁 logs/                   # Log files
-├── 📁 backups/               # Database backups
-├── main.py                   # Application entry point
-├── test_setup.py             # Setup verification script
-├── requirements.txt          # Python dependencies
-├── env.example              # Environment template
-└── README.md                # This documentation
+carlos_tg_bot/
+├── 📁 config/                     # Enhanced configuration system
+│   ├── config.py                 # Main config manager
+│   ├── dynamic_settings.py       # Runtime settings manager
+│   └── settings_config.json      # JSON-based settings schema
+├── 📁 database/                   # Database layer
+│   ├── schema.sql                # Enhanced database schema
+│   └── database_manager.py       # Database operations
+├── 📁 exchange/                   # Direct Crypto.com integration
+│   └── crypto_exchange_api.py     # Full Crypto.com API implementation
+├── 📁 signals/                    # Advanced signal generation
+│   └── signal_engine.py          # Multi-indicator technical analysis
+├── 📁 telegram_bot/               # Enhanced Telegram interface
+│   ├── bot_core.py               # Main bot with real-time features
+│   └── settings_handlers.py      # Interactive settings management
+├── 📁 utils/                      # Utility functions
+│   └── logging_setup.py          # Advanced logging configuration
+├── 📁 data/                       # Database storage
+│   ├── trading_bot.db            # Main database
+│   ├── demo_settings.db          # Demo configuration
+│   └── test_*.db                 # Test databases
+├── 📁 logs/                       # Log files
+│   ├── trading_bot.log           # Main application log
+│   └── test.log                  # Test execution log
+├── 📁 backups/                    # Automatic backups
+├── main.py                       # Application entry point
+├── test_*.py                     # Comprehensive test suites
+├── requirements.txt              # Enhanced Python dependencies
+├── env.example                   # Environment template
+└── README.md                     # This comprehensive documentation
 ```
 
 ### 🧪 Testing
@@ -436,14 +502,37 @@ sqlite3 data/trading_bot.db ".tables"
 
 ### 🐍 Python Dependencies
 ```
-python-dotenv>=1.0.0          # Environment configuration
-python-telegram-bot>=20.0     # Telegram bot framework
-requests>=2.31.0              # HTTP client
-aiohttp>=3.8.0                # Async HTTP client
-numpy>=1.24.0                 # Numerical computing
-pandas>=2.0.0                 # Data analysis
-ccxt>=4.0.0                   # Cryptocurrency exchange library
-openpyxl>=3.1.0               # Excel file support
+# Core Libraries
+python-dotenv                 # Environment configuration
+dataclasses                   # Python < 3.7 compatibility
+
+# Telegram Integration
+python-telegram-bot           # Advanced Telegram bot framework
+telegram                     # Telegram API
+
+# HTTP & Networking
+requests                      # HTTP client for API calls
+aiohttp                       # Async HTTP client
+urllib3                       # HTTP client utilities
+
+# Database
+db-sqlite3                    # Enhanced SQLite support
+
+# Data Analysis & Computing
+numpy                         # Numerical computing for technical analysis
+pandas                        # Data analysis and manipulation
+ccxt                          # Cryptocurrency exchange library
+
+# File Support
+openpyxl                      # Excel file support
+
+# Development & Testing
+pytest                        # Testing framework
+pytest-asyncio               # Async testing support
+pytest-mock                  # Mock testing utilities
+
+# System Monitoring
+psutil                        # System performance monitoring
 ```
 
 ### 🔗 External Dependencies
@@ -529,6 +618,60 @@ pip install -r requirements.txt --force-reinstall
 
 ---
 
-**🚀 Ready to start? Copy `env.example` to `.env`, configure your settings, and run `python main.py`!**
+## 🔥 Recent Updates & Enhancements
 
-**⚠️ Remember: Start with paper trading and small amounts. Never risk more than you can afford to lose.**
+### ✨ Version 2.0 Features
+- **🔄 Real-time Data Integration** - All portfolio, orders, and history data directly from Crypto.com Exchange
+- **⚙️ Dynamic Settings System** - JSON-based configuration with hot-reload capabilities
+- **📋 Active Orders & Positions** - Enhanced monitoring with detailed P&L tracking
+- **💬 Improved Message Handling** - Fixed conversation state management for settings
+- **🎯 Precision Trading** - Enhanced quantity formatting and validation for different cryptocurrencies
+- **📊 Advanced Portfolio View** - Multi-currency balances with real-time price updates
+
+### 🛠️ Technical Improvements
+- **State Management Fix** - Resolved settings input conversation state conflicts
+- **API Optimization** - Enhanced Crypto.com API integration with proper error handling
+- **Validation System** - Comprehensive input validation and type conversion
+- **Debug Logging** - Enhanced logging for troubleshooting and monitoring
+
+### 🔧 Developer Experience
+- **Comprehensive Documentation** - Updated README with detailed feature explanations
+- **Test Suite** - Multiple test files for different components
+- **Code Organization** - Modular architecture with clear separation of concerns
+
+---
+
+## 🚀 Quick Start Summary
+
+1. **Clone & Install**
+   ```bash
+   git clone https://github.com/shaumne/carlos_tg_bot.git
+   cd carlos_tg_bot
+   pip install -r requirements.txt
+   ```
+
+2. **Configure**
+   ```bash
+   cp env.example .env
+   # Edit .env with your credentials
+   ```
+
+3. **Test & Run**
+   ```bash
+   python test_setup.py  # Verify setup
+   python main.py        # Start the bot
+   ```
+
+4. **Start Trading**
+   - Begin with `/start` in Telegram
+   - Configure settings via `/settings`
+   - Monitor portfolio with `/portfolio`
+   - View history with `/history`
+
+---
+
+**🚀 Ready to start? The enhanced Carlos Trading Bot is production-ready with real-time Crypto.com integration!**
+
+**⚠️ Important: Start with paper trading mode and small amounts. Test thoroughly before live trading. Never risk more than you can afford to lose.**
+
+**📈 Pro Tip: Use the dynamic settings system to fine-tune your trading strategy without restarting the bot!**
