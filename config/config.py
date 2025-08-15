@@ -121,13 +121,6 @@ class SecurityConfig:
     rate_limit_window: int = 60  # saniye
     rate_limit_max_requests: int = 30
     enable_audit_log: bool = True
-    
-    # IP whitelist (boş bırakılırsa tüm IP'ler kabul edilir)
-    allowed_ips: List[str] = None
-    
-    def __post_init__(self):
-        if self.allowed_ips is None:
-            self.allowed_ips = []
 
 class ConfigManager:
     """
@@ -325,21 +318,13 @@ class ConfigManager:
         """Security konfigürasyonunu oluştur"""
         config_section = self._config_data.get('security', {})
         
-        # Allowed IPs from env
-        allowed_ips_env = os.getenv('ALLOWED_IPS', '')
-        if allowed_ips_env:
-            allowed_ips = [ip.strip() for ip in allowed_ips_env.split(',') if ip.strip()]
-        else:
-            allowed_ips = config_section.get('allowed_ips', [])
-        
         return SecurityConfig(
             encryption_key=os.getenv('ENCRYPTION_KEY', config_section.get('encryption_key')),
             session_timeout=int(os.getenv('SESSION_TIMEOUT', config_section.get('session_timeout', 3600))),
             max_failed_attempts=int(os.getenv('MAX_FAILED_ATTEMPTS', config_section.get('max_failed_attempts', 5))),
             rate_limit_window=int(os.getenv('RATE_LIMIT_WINDOW', config_section.get('rate_limit_window', 60))),
             rate_limit_max_requests=int(os.getenv('RATE_LIMIT_MAX_REQUESTS', config_section.get('rate_limit_max_requests', 30))),
-            enable_audit_log=os.getenv('ENABLE_AUDIT_LOG', str(config_section.get('enable_audit_log', True))).lower() == 'true',
-            allowed_ips=allowed_ips
+            enable_audit_log=os.getenv('ENABLE_AUDIT_LOG', str(config_section.get('enable_audit_log', True))).lower() == 'true'
         )
     
     def update_setting(self, section: str, key: str, value: Any) -> bool:
@@ -460,8 +445,7 @@ class ConfigManager:
             'security': {
                 'session_timeout': self.security.session_timeout,
                 'rate_limiting_enabled': self.security.rate_limit_max_requests > 0,
-                'audit_log_enabled': self.security.enable_audit_log,
-                'ip_whitelist_enabled': len(self.security.allowed_ips) > 0
+                'audit_log_enabled': self.security.enable_audit_log
             }
         }
 
