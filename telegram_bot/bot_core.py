@@ -1472,6 +1472,22 @@ History will appear here after you place trades.
             
             confidence_bars = "█" * int(signal.confidence * 5)
             
+            # Volume ratio info
+            volume_info = ""
+            if signal.indicators.volume_ratio:
+                volume_ratio = signal.indicators.volume_ratio
+                if volume_ratio >= 3.0:
+                    volume_emoji = "🚀🚀🚀🚀"
+                elif volume_ratio >= 2.0:
+                    volume_emoji = "🚀🚀🚀"
+                elif volume_ratio >= 1.5:
+                    volume_emoji = "🔥🔥"
+                elif volume_ratio >= 1.0:
+                    volume_emoji = "📈"
+                else:
+                    volume_emoji = "📊"
+                volume_info = f"\n• Volume Ratio: {volume_ratio:.2f}x {volume_emoji}"
+            
             analysis_text = f"""
 📊 <b>{symbol} Technical Analysis</b>
 
@@ -1484,7 +1500,7 @@ History will appear here after you place trades.
 • RSI: {signal.indicators.rsi:.1f} 
 • ATR: {signal.indicators.atr:.6f}
 • MA20: ${signal.indicators.ma_20:.6f}
-• EMA12: ${signal.indicators.ema_12:.6f}
+• EMA12: ${signal.indicators.ema_12:.6f}{volume_info}
 
 <b>🔍 Analysis Reasons:</b>
 {chr(10).join(['• ' + reason for reason in signal.reasoning])}
@@ -1500,6 +1516,24 @@ History will appear here after you place trades.
             
             # Save signal to database
             self.signal_engine.save_signal_to_db(signal)
+            
+            # Send notification if BUY or SELL signal
+            if signal.signal_type in ["BUY", "SELL"]:
+                signal_dict = {
+                    'action': signal.signal_type,
+                    'symbol': symbol,
+                    'current_price': signal.price,
+                    'confidence': signal.confidence,
+                    'reasoning': "; ".join(signal.reasoning),
+                    'indicators': {
+                        'rsi': signal.indicators.rsi,
+                        'atr': signal.indicators.atr,
+                        'volume_ratio': signal.indicators.volume_ratio
+                    }
+                }
+                
+                await self._send_signal_notification(signal_dict)
+                logger.info(f"📨 Automatic notification sent for {signal.signal_type} signal: {symbol}")
             
             await self._send_response(update_or_query, analysis_text)
             
@@ -2302,37 +2336,142 @@ History will appear here after you place trades.
             return False
     
     async def _send_signal_notification(self, signal):
-        """Send signal notification to users"""
+        """Send signal notification to users - GUARANTEED DELIVERY SYSTEM"""
         try:
-            action_emoji = "🟢" if signal['action'] == 'BUY' else "🔴"
-            strength_emoji = "🔥" if signal.get('strength') == 'strong' else "⚡"
+            # Extract signal data
+            action = signal.get('action', 'UNKNOWN')
+            symbol = signal.get('symbol', 'UNKNOWN')
+            current_price = signal.get('current_price', 0)
+            reasoning = signal.get('reasoning', 'Technical analysis')
+            confidence = signal.get('confidence', 0.5) * 100 if isinstance(signal.get('confidence'), float) else 50
             
+            # Volume analysis if available
+            volume_info = ""
+            indicators = signal.get('indicators', {})
+            if 'volume_ratio' in indicators:
+                volume_ratio = indicators['volume_ratio']
+                if volume_ratio >= 3.0:
+                    volume_emoji = "🚀🚀🚀🚀"
+                elif volume_ratio >= 2.0:
+                    volume_emoji = "🚀🚀🚀" 
+                elif volume_ratio >= 1.5:
+                    volume_emoji = "🔥🔥"
+                elif volume_ratio >= 1.0:
+                    volume_emoji = "📈"
+                else:
+                    volume_emoji = "📊"
+                volume_info = f"\n• Volume: {volume_ratio:.2f}x {volume_emoji}"
+            
+            # Emojis
+            action_emoji = "🟢" if action == 'BUY' else "🔴" if action == 'SELL' else "⚪"
+            strength_emoji = "🔥" if confidence >= 80 else "⚡" if confidence >= 60 else "📊"
+            
+            # Create enhanced notification
             notification_text = f"""
-{action_emoji} <b>{signal['action']} SIGNAL</b> {strength_emoji}
+{action_emoji} <b>{action} SIGNAL</b> {strength_emoji}
 
-<b>📊 {signal['symbol']}/USDT</b>
-• Price: ${signal.get('current_price', 0):.6f}
-• Strength: {signal.get('strength', 'medium').title()}
-• Reason: {signal.get('reasoning', 'Technical analysis')}
+<b>📊 {symbol}</b>
+• Price: ${current_price:.6f}
+• Confidence: {confidence:.1f}%{volume_info}
+• Reason: {reasoning}
 
-<b>📈 Indicators:</b>
-• RSI: {signal.get('indicators', {}).get('rsi', 'N/A')}
-• Price: ${signal.get('indicators', {}).get('price', 0):.6f}
+<b>📈 Technical:</b>
+• RSI: {indicators.get('rsi', 'N/A')}
+• ATR: {indicators.get('atr', 'N/A')}
+
+⏰ {datetime.now().strftime('%H:%M:%S')}
             """
             
-            # Send to all authorized users
+            # GUARANTEED DELIVERY SYSTEM
+            total_users = len(self.config.telegram.authorized_users)
+            successful_deliveries = 0
+            failed_deliveries = 0
+            
+            logger.info(f"🚀 SENDING {action} SIGNAL for {symbol} to {total_users} users...")
+            
             for user_id in self.config.telegram.authorized_users:
+                delivery_success = False
+                
+                # Try multiple delivery methods
+                for attempt in range(3):
+                    try:
+                        if attempt == 0:
+                            # Method 1: HTML formatting
+                            await self.application.bot.send_message(
+                                chat_id=user_id,
+                                text=notification_text,
+                                parse_mode=ParseMode.HTML,
+                                disable_web_page_preview=True
+                            )
+                        elif attempt == 1:
+                            # Method 2: Markdown formatting
+                            markdown_text = notification_text.replace('<b>', '**').replace('</b>', '**')
+                            await self.application.bot.send_message(
+                                chat_id=user_id,
+                                text=markdown_text,
+                                parse_mode=ParseMode.MARKDOWN,
+                                disable_web_page_preview=True
+                            )
+                        else:
+                            # Method 3: Plain text (no formatting)
+                            plain_text = f"{action} SIGNAL: {symbol}\nPrice: ${current_price:.6f}\nConfidence: {confidence:.1f}%\nTime: {datetime.now().strftime('%H:%M:%S')}"
+                            await self.application.bot.send_message(
+                                chat_id=user_id,
+                                text=plain_text
+                            )
+                        
+                        delivery_success = True
+                        successful_deliveries += 1
+                        logger.info(f"✅ Signal delivered to user {user_id} (method {attempt + 1})")
+                        break
+                        
+                    except Exception as e:
+                        logger.warning(f"⚠️ Delivery attempt {attempt + 1} failed for user {user_id}: {str(e)}")
+                        if attempt < 2:
+                            await asyncio.sleep(0.5)  # Wait between attempts
+                
+                if not delivery_success:
+                    failed_deliveries += 1
+                    logger.error(f"❌ FAILED to deliver signal to user {user_id} after 3 attempts")
+                    
+                    # Emergency log
+                    try:
+                        with open("logs/failed_signals.log", "a") as f:
+                            f.write(f"{datetime.now().isoformat()} - FAILED DELIVERY: {action} {symbol} to {user_id}\n")
+                    except:
+                        pass
+            
+            # Final delivery report
+            logger.info(f"📊 SIGNAL DELIVERY REPORT: {successful_deliveries}/{total_users} successful, {failed_deliveries} failed")
+            
+            # Critical alert if no deliveries succeeded
+            if successful_deliveries == 0:
+                logger.critical(f"🚨 CRITICAL: NO USERS RECEIVED {action} SIGNAL FOR {symbol}!")
+                
+                # Emergency notification file
                 try:
-                    await self.application.bot.send_message(
-                        chat_id=user_id,
-                        text=notification_text,
-                        parse_mode=ParseMode.HTML
-                    )
-                except Exception as e:
-                    logger.error(f"Error sending signal notification to {user_id}: {str(e)}")
+                    with open("logs/emergency_signals.log", "a") as f:
+                        f.write(f"{datetime.now().isoformat()} - EMERGENCY: {action} {symbol} - NO DELIVERIES\n")
+                except:
+                    pass
+            
+            # Log successful signal
+            if successful_deliveries > 0:
+                logger.info(f"🎯 {action} SIGNAL for {symbol} successfully delivered to {successful_deliveries} users")
+            
+            return successful_deliveries > 0
                     
         except Exception as e:
-            logger.error(f"Error sending signal notification: {str(e)}")
+            logger.critical(f"🚨 CRITICAL ERROR in signal notification system: {str(e)}")
+            
+            # Emergency backup log
+            try:
+                with open("logs/critical_signal_errors.log", "a") as f:
+                    f.write(f"{datetime.now().isoformat()} - CRITICAL: {str(e)} - Signal: {signal}\n")
+            except:
+                pass
+            
+            return False
     
     # ============ ERROR HANDLER ============
     

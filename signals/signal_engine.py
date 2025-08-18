@@ -31,6 +31,12 @@ class TechnicalIndicators:
     stoch_d: Optional[float] = None
     volume_sma: Optional[float] = None
     current_price: Optional[float] = None
+    # Volume analysis
+    volume_ratio: Optional[float] = None
+    volume_average: Optional[float] = None
+    # Support/Resistance
+    support_level: Optional[float] = None
+    resistance_level: Optional[float] = None
 
 @dataclass
 class MarketData:
@@ -74,7 +80,11 @@ class TradingSignal:
                 'macd_line': self.indicators.macd_line,
                 'macd_signal': self.indicators.macd_signal,
                 'stoch_k': self.indicators.stoch_k,
-                'stoch_d': self.indicators.stoch_d
+                'stoch_d': self.indicators.stoch_d,
+                'volume_ratio': self.indicators.volume_ratio,
+                'volume_average': self.indicators.volume_average,
+                'support_level': self.indicators.support_level,
+                'resistance_level': self.indicators.resistance_level
             },
             'market_data': {
                 'volume': self.market_data.volume,
@@ -387,7 +397,11 @@ class SignalEngine:
         self._data_cache = {}
         self._cache_timeout = 60  # seconds
         
-        logger.info("Signal engine initialized")
+        # Volume tracking system (YF.py style)
+        self._volume_history = {}  # {symbol: [volume1, volume2, ...]}
+        self._volume_history_size = 14  # Keep last 14 periods
+        
+        logger.info("Signal engine initialized with volume tracking")
     
     async def get_technical_indicators(self, symbol: str) -> Optional[TechnicalIndicators]:
         """Get technical indicators for a symbol"""
@@ -458,8 +472,15 @@ class SignalEngine:
             closes = [float(candle[4]) for candle in ohlcv_data]
             volumes = [float(candle[5]) for candle in ohlcv_data]
             
+            # Update volume history before calculating indicators
+            current_volume = volumes[-1] if volumes else 0
+            self._update_volume_history(symbol, current_volume)
+            
             # Teknik göstergeleri hesapla
             indicators = self._calculate_indicators(opens, highs, lows, closes, volumes)
+            
+            # Fix volume ratio calculation with correct symbol
+            indicators.volume_ratio = self._calculate_volume_ratio(symbol, current_volume)
             
             # Sinyal üret
             signal = self._generate_signal(symbol, market_data, indicators)
@@ -469,6 +490,81 @@ class SignalEngine:
         except Exception as e:
             logger.error(f"Error analyzing symbol {symbol}: {str(e)}")
             return None
+    
+    def _calculate_volume_ratio(self, symbol: str, current_volume: float) -> float:
+        """Calculate volume ratio (current/average)"""
+        try:
+            # Normalize symbol for consistent tracking
+            normalized_symbol = symbol.replace('/', '_').replace('-', '_')
+            
+            # Get volume history for this symbol
+            if normalized_symbol not in self._volume_history:
+                # First time seeing this symbol
+                self._volume_history[normalized_symbol] = []
+                return 1.0  # Default ratio
+            
+            volume_history = self._volume_history[normalized_symbol]
+            
+            if len(volume_history) == 0:
+                return 1.0
+            
+            # Calculate average volume
+            average_volume = sum(volume_history) / len(volume_history)
+            
+            if average_volume <= 0:
+                return 1.0
+            
+            # Calculate ratio
+            volume_ratio = current_volume / average_volume
+            
+            logger.debug(f"Volume ratio for {symbol}: {volume_ratio:.2f} (current: {current_volume}, avg: {average_volume})")
+            
+            return volume_ratio
+            
+        except Exception as e:
+            logger.error(f"Error calculating volume ratio for {symbol}: {str(e)}")
+            return 1.0
+    
+    def _update_volume_history(self, symbol: str, current_volume: float):
+        """Update volume history for symbol"""
+        try:
+            # Normalize symbol
+            normalized_symbol = symbol.replace('/', '_').replace('-', '_')
+            
+            # Initialize if not exists
+            if normalized_symbol not in self._volume_history:
+                self._volume_history[normalized_symbol] = []
+            
+            # Add current volume to history
+            self._volume_history[normalized_symbol].append(current_volume)
+            
+            # Keep only last N periods
+            if len(self._volume_history[normalized_symbol]) > self._volume_history_size:
+                self._volume_history[normalized_symbol] = self._volume_history[normalized_symbol][-self._volume_history_size:]
+            
+            logger.debug(f"Updated volume history for {symbol}: {len(self._volume_history[normalized_symbol])} periods")
+            
+        except Exception as e:
+            logger.error(f"Error updating volume history for {symbol}: {str(e)}")
+    
+    def _calculate_support_resistance(self, highs: List[float], lows: List[float]) -> Tuple[float, float]:
+        """Calculate support and resistance levels"""
+        try:
+            if len(highs) < 10 or len(lows) < 10:
+                return 0.0, 0.0
+            
+            # Simple support/resistance calculation
+            # Support: Average of recent lows
+            support = np.mean(lows[-10:]) * 0.98  # 2% buffer
+            
+            # Resistance: Average of recent highs  
+            resistance = np.mean(highs[-10:]) * 1.02  # 2% buffer
+            
+            return float(support), float(resistance)
+            
+        except Exception as e:
+            logger.error(f"Error calculating support/resistance: {str(e)}")
+            return 0.0, 0.0
     
     def _calculate_indicators(self, opens: List[float], highs: List[float], 
                             lows: List[float], closes: List[float], 
@@ -507,6 +603,16 @@ class SignalEngine:
             # Volume SMA
             indicators.volume_sma = self.analyzer.calculate_moving_average(volumes, 20)
             
+            # Volume ratio calculation
+            current_volume = volumes[-1] if volumes else 0
+            indicators.volume_ratio = self._calculate_volume_ratio("", current_volume)  # Symbol will be passed from caller
+            indicators.volume_average = indicators.volume_sma
+            
+            # Support/Resistance levels
+            support, resistance = self._calculate_support_resistance(highs, lows)
+            indicators.support_level = support
+            indicators.resistance_level = resistance
+            
             return indicators
             
         except Exception as e:
@@ -515,7 +621,7 @@ class SignalEngine:
     
     def _generate_signal(self, symbol: str, market_data: MarketData, 
                         indicators: TechnicalIndicators) -> TradingSignal:
-        """Teknik göstergelere dayalı sinyal üret"""
+        """YF.py tarzı gelişmiş sinyal üretim sistemi"""
         try:
             current_price = market_data.price
             signal_type = "WAIT"
@@ -523,108 +629,126 @@ class SignalEngine:
             reasoning = []
             risk_level = "MEDIUM"
             
-            buy_signals = 0
-            sell_signals = 0
-            signal_strength = 0
+            # Moving Average conditions count (YF.py style)
+            ma_conditions = 0
             
-            # RSI analizi
-            if indicators.rsi is not None:
-                if indicators.rsi <= self.trading_config.rsi_oversold:
-                    buy_signals += 2
-                    signal_strength += 0.3
-                    reasoning.append(f"RSI oversold ({indicators.rsi:.1f})")
-                elif indicators.rsi >= self.trading_config.rsi_overbought:
-                    sell_signals += 2
-                    signal_strength += 0.3
-                    reasoning.append(f"RSI overbought ({indicators.rsi:.1f})")
-                elif 40 <= indicators.rsi <= 60:
-                    reasoning.append(f"RSI neutral ({indicators.rsi:.1f})")
+            # Check MA conditions
+            if indicators.ma_20 is not None and current_price > indicators.ma_20:
+                ma_conditions += 1
+                reasoning.append("Price above MA20")
             
-            # Moving Average analizi
-            if indicators.ma_20 is not None and indicators.ema_12 is not None:
-                if current_price > indicators.ma_20 and indicators.ema_12 > indicators.ma_20:
-                    buy_signals += 1
-                    signal_strength += 0.2
-                    reasoning.append("Price above MA20 and EMA12 > MA20")
-                elif current_price < indicators.ma_20 and indicators.ema_12 < indicators.ma_20:
-                    sell_signals += 1
-                    signal_strength += 0.2
-                    reasoning.append("Price below MA20 and EMA12 < MA20")
+            if indicators.ema_12 is not None and current_price > indicators.ema_12:
+                ma_conditions += 1
+                reasoning.append("Price above EMA12")
             
-            # Bollinger Bands analizi
+            if (indicators.ma_20 is not None and indicators.ema_12 is not None and 
+                indicators.ema_12 > indicators.ma_20):
+                ma_conditions += 1
+                reasoning.append("EMA12 > MA20")
+            
+            # Enhanced BUY Logic (YF.py inspired)
+            buy_signal = False
+            volume_ratio = indicators.volume_ratio or 1.0
+            
+            # Condition 1: RSI < 30 + at least 1 MA condition (oversold)
+            if (indicators.rsi is not None and indicators.rsi < 30 and ma_conditions >= 1):
+                buy_signal = True
+                reasoning.append(f"Strong buy: RSI oversold ({indicators.rsi:.1f}) + MA conditions")
+                confidence = 0.8
+            
+            # Condition 2: RSI < 40 + MA conditions + high volume
+            elif (indicators.rsi is not None and indicators.rsi < 40 and 
+                  ma_conditions >= 1 and volume_ratio >= 1.5):
+                buy_signal = True
+                reasoning.append(f"Buy: RSI ({indicators.rsi:.1f}) + MA + High volume ({volume_ratio:.2f}x)")
+                confidence = 0.75
+            
+            # Enhanced SELL Logic
+            sell_signal = False
+            
+            # RSI overbought + price above resistance
+            if (indicators.rsi is not None and indicators.rsi > 70):
+                if (indicators.resistance_level is not None and 
+                    current_price > indicators.resistance_level):
+                    sell_signal = True
+                    reasoning.append(f"Sell: RSI overbought ({indicators.rsi:.1f}) + above resistance")
+                    confidence = 0.8
+                else:
+                    reasoning.append(f"RSI overbought ({indicators.rsi:.1f}) but no resistance break")
+            
+            # Bollinger Bands sell signal
             if (indicators.bollinger_upper is not None and 
-                indicators.bollinger_lower is not None):
-                
-                if current_price <= indicators.bollinger_lower:
-                    buy_signals += 1
-                    signal_strength += 0.25
-                    reasoning.append("Price at/below Bollinger lower band")
-                elif current_price >= indicators.bollinger_upper:
-                    sell_signals += 1
-                    signal_strength += 0.25
-                    reasoning.append("Price at/above Bollinger upper band")
+                current_price >= indicators.bollinger_upper and 
+                indicators.rsi is not None and indicators.rsi > 65):
+                sell_signal = True
+                reasoning.append("Sell: Price at Bollinger upper + RSI > 65")
+                confidence = max(confidence, 0.7)
             
-            # MACD analizi
-            if (indicators.macd_line is not None and 
-                indicators.macd_signal is not None):
-                
-                if indicators.macd_line > indicators.macd_signal and indicators.macd_line > 0:
-                    buy_signals += 1
-                    signal_strength += 0.15
-                    reasoning.append("MACD bullish crossover")
-                elif indicators.macd_line < indicators.macd_signal and indicators.macd_line < 0:
-                    sell_signals += 1
-                    signal_strength += 0.15
-                    reasoning.append("MACD bearish crossover")
+            # Additional technical confirmations
+            technical_score = 0
             
-            # Stochastic analizi
+            # MACD confirmation
+            if (indicators.macd_line is not None and indicators.macd_signal is not None):
+                if buy_signal and indicators.macd_line > indicators.macd_signal:
+                    technical_score += 0.1
+                    reasoning.append("MACD bullish confirmation")
+                elif sell_signal and indicators.macd_line < indicators.macd_signal:
+                    technical_score += 0.1
+                    reasoning.append("MACD bearish confirmation")
+            
+            # Stochastic confirmation
             if indicators.stoch_k is not None and indicators.stoch_d is not None:
-                if indicators.stoch_k <= 20 and indicators.stoch_d <= 20:
-                    buy_signals += 1
-                    signal_strength += 0.1
-                    reasoning.append("Stochastic oversold")
-                elif indicators.stoch_k >= 80 and indicators.stoch_d >= 80:
-                    sell_signals += 1
-                    signal_strength += 0.1
-                    reasoning.append("Stochastic overbought")
+                if buy_signal and indicators.stoch_k <= 30:
+                    technical_score += 0.1
+                    reasoning.append("Stochastic oversold confirmation")
+                elif sell_signal and indicators.stoch_k >= 70:
+                    technical_score += 0.1
+                    reasoning.append("Stochastic overbought confirmation")
             
-            # Volume analizi
-            if indicators.volume_sma is not None and market_data.volume > indicators.volume_sma * 1.5:
-                signal_strength += 0.1
-                reasoning.append("High volume confirmation")
+            # Volume analysis (from YF.py)
+            if volume_ratio >= 3.0:
+                technical_score += 0.15
+                reasoning.append(f"Very high volume ({volume_ratio:.2f}x)")
+            elif volume_ratio >= 2.0:
+                technical_score += 0.1
+                reasoning.append(f"High volume ({volume_ratio:.2f}x)")
+            elif volume_ratio >= 1.5:
+                technical_score += 0.05
+                reasoning.append(f"Above average volume ({volume_ratio:.2f}x)")
             
-            # 24h değişim analizi
-            if market_data.change_24h is not None:
-                if market_data.change_24h > 5:
-                    sell_signals += 1
-                    reasoning.append(f"Strong 24h gain ({market_data.change_24h:.1f}%)")
-                    risk_level = "HIGH"
-                elif market_data.change_24h < -5:
-                    buy_signals += 1
-                    reasoning.append(f"Strong 24h decline ({market_data.change_24h:.1f}%)")
-                    risk_level = "HIGH"
-            
-            # Sinyal karar verme
-            total_signals = buy_signals + sell_signals
-            
-            if buy_signals > sell_signals and buy_signals >= 2:
+            # Finalize signal
+            if buy_signal:
                 signal_type = "BUY"
-                confidence = min(0.9, 0.5 + signal_strength)
-            elif sell_signals > buy_signals and sell_signals >= 2:
+                confidence += technical_score
+                confidence = min(0.95, confidence)  # Cap at 95%
+                risk_level = "LOW" if confidence >= 0.8 else "MEDIUM"
+            elif sell_signal:
                 signal_type = "SELL"
-                confidence = min(0.9, 0.5 + signal_strength)
+                confidence += technical_score
+                confidence = min(0.95, confidence)  # Cap at 95%
+                risk_level = "LOW" if confidence >= 0.8 else "MEDIUM"
             else:
                 signal_type = "WAIT"
                 confidence = 0.5
-                reasoning.append("Mixed or weak signals")
+                reasoning.append("No strong signals detected")
+                
+                # Add neutral analysis
+                if indicators.rsi is not None:
+                    if 40 <= indicators.rsi <= 60:
+                        reasoning.append(f"RSI neutral ({indicators.rsi:.1f})")
+                    else:
+                        reasoning.append(f"RSI: {indicators.rsi:.1f}")
+                
+                if volume_ratio < 0.8:
+                    reasoning.append(f"Low volume ({volume_ratio:.2f}x)")
             
-            # Risk seviyesi ayarlama
-            if confidence >= 0.8:
-                risk_level = "LOW"
-            elif confidence <= 0.6:
+            # High risk conditions
+            if (market_data.change_24h is not None and 
+                abs(market_data.change_24h) > 10):
                 risk_level = "HIGH"
+                reasoning.append(f"High volatility: {market_data.change_24h:.1f}% 24h change")
             
-            # Sinyal oluştur
+            # Create signal
             signal = TradingSignal(
                 symbol=symbol,
                 signal_type=signal_type,
@@ -637,7 +761,8 @@ class SignalEngine:
                 risk_level=risk_level
             )
             
-            logger.info(f"Generated signal for {symbol}: {signal_type} (confidence: {confidence:.2f})")
+            logger.info(f"Generated enhanced signal for {symbol}: {signal_type} "
+                       f"(confidence: {confidence:.2f}, volume_ratio: {volume_ratio:.2f})")
             
             return signal
             
