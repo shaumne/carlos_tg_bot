@@ -77,10 +77,17 @@ class TradingConfig:
 @dataclass
 class MonitoringConfig:
     """Monitoring and notification settings"""
-    signal_check_interval: int = 30  # saniye
+    signal_check_interval: int = 30  # saniye - Background analysis interval
     position_check_interval: int = 60  # saniye
     price_update_interval: int = 10  # saniye
     health_check_interval: int = 300  # saniye
+    
+    # Background Analysis Settings
+    enable_background_analysis: bool = True  # 7/24 otomatik analiz
+    background_batch_size: int = 5  # Aynı anda analiz edilecek coin sayısı
+    new_coin_priority: bool = True  # Yeni coinlere öncelik ver
+    max_failed_retries: int = 3  # Başarısız analiz retry sayısı
+    failed_coin_retry_delay: int = 300  # Başarısız coin retry bekleme süresi (saniye)
     
     # Bildirim seviyeleri
     notify_signals: bool = True

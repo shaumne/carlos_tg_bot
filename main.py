@@ -29,11 +29,13 @@ from config.config import ConfigManager, get_config
 from database.database_manager import DatabaseManager
 from utils.logging_setup import setup_logging, create_logger, log_startup_info, log_shutdown_info
 from telegram_bot.bot_core import TelegramTradingBot
+from signals.background_analyzer import BackgroundAnalyzer
 
 # Global variables
 config_manager = None
 database_manager = None
 telegram_bot = None
+background_analyzer = None
 logger = None
 
 async def initialize_system():
@@ -80,7 +82,7 @@ async def initialize_system():
 
 async def start_trading_bot():
     """Start the main trading bot"""
-    global telegram_bot, config_manager, database_manager, logger
+    global telegram_bot, background_analyzer, config_manager, database_manager, logger
     
     try:
         logger.info("🤖 Starting Telegram Trading Bot...")
@@ -93,6 +95,18 @@ async def start_trading_bot():
         
         if success:
             logger.info("✅ Telegram Trading Bot started successfully!")
+            
+            # Start background analyzer if enabled
+            if config_manager.monitoring.enable_background_analysis:
+                logger.info("🔄 Starting Background Analysis System...")
+                background_analyzer = BackgroundAnalyzer(config_manager, database_manager, telegram_bot)
+                
+                # Start background analyzer in a separate task
+                asyncio.create_task(background_analyzer.start())
+                logger.info("✅ Background Analysis System started!")
+            else:
+                logger.info("⚠️ Background analysis is disabled in config")
+            
             return True
         else:
             logger.error("❌ Failed to start Telegram Trading Bot")
@@ -105,10 +119,15 @@ async def start_trading_bot():
 
 async def stop_trading_bot():
     """Stop the trading bot gracefully"""
-    global telegram_bot, database_manager, logger
+    global telegram_bot, background_analyzer, database_manager, logger
     
     try:
         logger.info("🛑 Shutting down trading bot...")
+        
+        # Stop background analyzer first
+        if background_analyzer and background_analyzer.is_running:
+            logger.info("🛑 Stopping Background Analysis System...")
+            await background_analyzer.stop()
         
         # Stop telegram bot
         if telegram_bot:
@@ -165,10 +184,15 @@ def setup_signal_handlers():
 
 async def shutdown_sequence():
     """Graceful shutdown sequence"""
-    global logger
+    global background_analyzer, logger
     
     try:
         logger.info("🔄 Starting graceful shutdown sequence...")
+        
+        # Stop background analyzer first
+        if background_analyzer and background_analyzer.is_running:
+            logger.info("🛑 Stopping Background Analysis System...")
+            await background_analyzer.stop()
         
         # Stop trading bot
         await stop_trading_bot()

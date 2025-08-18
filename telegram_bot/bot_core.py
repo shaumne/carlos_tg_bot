@@ -115,6 +115,9 @@ class TelegramTradingBot:
         self.application.add_handler(CommandHandler("remove_coin", self._cmd_remove_coin))
         self.application.add_handler(CommandHandler("analyze", self._cmd_analyze))
         self.application.add_handler(CommandHandler("health", self._cmd_health))
+        self.application.add_handler(CommandHandler("analyzer", self._cmd_analyzer_status))
+        self.application.add_handler(CommandHandler("start_analyzer", self._cmd_start_analyzer))
+        self.application.add_handler(CommandHandler("stop_analyzer", self._cmd_stop_analyzer))
         
         # Admin commands
         self.application.add_handler(CommandHandler("admin", self._cmd_admin))
@@ -1014,6 +1017,147 @@ History will appear here after you place trades.
                 reply_markup=reply_markup
             )
     
+    async def _cmd_analyzer_status(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Background analyzer status command"""
+        if not self._check_authorization(update.effective_user.id):
+            await self._send_unauthorized_message(update)
+            return
+        
+        try:
+            # Get background analyzer reference from main module
+            import main
+            background_analyzer = getattr(main, 'background_analyzer', None)
+            
+            if not background_analyzer:
+                status_text = """🔴 <b>Background Analyzer Status</b>
+                
+<b>Status:</b> Not initialized
+<b>Reason:</b> Background analyzer not available
+
+The background analysis system is not running."""
+            else:
+                status = background_analyzer.get_status()
+                
+                status_emoji = "🟢" if status['is_running'] else "🔴"
+                
+                status_text = f"""
+{status_emoji} <b>Background Analyzer Status</b>
+
+<b>Status:</b> {'Running' if status['is_running'] else 'Stopped'}
+<b>Analysis Interval:</b> {status['analysis_interval']} seconds
+<b>Batch Size:</b> {status['batch_size']} coins
+
+<b>📊 Statistics:</b>
+• Total Coins: {status['stats']['total_coins']}
+• Analyzed: {status['stats']['analyzed_coins']}
+• BUY Signals: {status['stats']['buy_signals']}
+• SELL Signals: {status['stats']['sell_signals']}
+• Failed Analysis: {status['stats']['failed_analysis']}
+• Avg Analysis Time: {status['stats']['average_analysis_time']:.2f}s
+
+<b>🔧 System Info:</b>
+• Failed Symbols: {status['failed_symbols_count']}
+• New Coins Pending: {status['new_coins_pending']}
+• Last Run: {status['stats']['last_run_time'] or 'Never'}
+                """
+            
+            await self._send_response(update, status_text)
+            
+        except Exception as e:
+            logger.error(f"Error in analyzer status command: {str(e)}")
+            await self._send_response(
+                update,
+                f"❌ Error getting analyzer status: {str(e)}"
+            )
+    
+    async def _cmd_start_analyzer(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Start background analyzer command"""
+        if not self._check_authorization(update.effective_user.id):
+            await self._send_unauthorized_message(update)
+            return
+        
+        try:
+            import main
+            background_analyzer = getattr(main, 'background_analyzer', None)
+            
+            if not background_analyzer:
+                await self._send_response(
+                    update,
+                    "❌ Background analyzer not initialized. Please restart the bot."
+                )
+                return
+            
+            if background_analyzer.is_running:
+                await self._send_response(
+                    update,
+                    "⚠️ Background analyzer is already running."
+                )
+                return
+            
+            await self._send_response(
+                update,
+                "🔄 Starting background analyzer..."
+            )
+            
+            # Start analyzer in background task
+            import asyncio
+            asyncio.create_task(background_analyzer.start())
+            
+            await self._send_response(
+                update,
+                "✅ Background analyzer started successfully!"
+            )
+            
+        except Exception as e:
+            logger.error(f"Error starting analyzer: {str(e)}")
+            await self._send_response(
+                update,
+                f"❌ Error starting analyzer: {str(e)}"
+            )
+    
+    async def _cmd_stop_analyzer(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Stop background analyzer command"""
+        if not self._check_authorization(update.effective_user.id):
+            await self._send_unauthorized_message(update)
+            return
+        
+        try:
+            import main
+            background_analyzer = getattr(main, 'background_analyzer', None)
+            
+            if not background_analyzer:
+                await self._send_response(
+                    update,
+                    "❌ Background analyzer not initialized."
+                )
+                return
+            
+            if not background_analyzer.is_running:
+                await self._send_response(
+                    update,
+                    "⚠️ Background analyzer is not running."
+                )
+                return
+            
+            await self._send_response(
+                update,
+                "🛑 Stopping background analyzer..."
+            )
+            
+            await background_analyzer.stop()
+            
+            await self._send_response(
+                update,
+                "✅ Background analyzer stopped successfully!"
+            )
+            
+        except Exception as e:
+            logger.error(f"Error stopping analyzer: {str(e)}")
+            await self._send_response(
+                update,
+                f"❌ Error stopping analyzer: {str(e)}"
+            )
+
     async def _cmd_health(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Health check command"""
         if not self._check_authorization(update.effective_user.id):
@@ -2344,6 +2488,7 @@ History will appear here after you place trades.
             current_price = signal.get('current_price', 0)
             reasoning = signal.get('reasoning', 'Technical analysis')
             confidence = signal.get('confidence', 0.5) * 100 if isinstance(signal.get('confidence'), float) else 50
+            is_new_coin = signal.get('is_new_coin', False)
             
             # Volume analysis if available
             volume_info = ""
@@ -2365,10 +2510,11 @@ History will appear here after you place trades.
             # Emojis
             action_emoji = "🟢" if action == 'BUY' else "🔴" if action == 'SELL' else "⚪"
             strength_emoji = "🔥" if confidence >= 80 else "⚡" if confidence >= 60 else "📊"
+            new_coin_prefix = "🆕 NEW COIN - " if is_new_coin else ""
             
             # Create enhanced notification
             notification_text = f"""
-{action_emoji} <b>{action} SIGNAL</b> {strength_emoji}
+{action_emoji} <b>{new_coin_prefix}{action} SIGNAL</b> {strength_emoji}
 
 <b>📊 {symbol}</b>
 • Price: ${current_price:.6f}
@@ -2471,6 +2617,27 @@ History will appear here after you place trades.
             except:
                 pass
             
+            return False
+    
+    async def _send_response_to_all_users(self, message_text):
+        """Send a message to all authorized users"""
+        try:
+            for user_id in self.config.telegram.authorized_users:
+                try:
+                    await self.application.bot.send_message(
+                        chat_id=user_id,
+                        text=message_text,
+                        parse_mode=ParseMode.HTML,
+                        disable_web_page_preview=True
+                    )
+                except Exception as e:
+                    logger.error(f"Error sending message to user {user_id}: {str(e)}")
+            
+            logger.info(f"Message sent to {len(self.config.telegram.authorized_users)} users")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error in _send_response_to_all_users: {str(e)}")
             return False
     
     # ============ ERROR HANDLER ============

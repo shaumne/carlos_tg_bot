@@ -13,6 +13,7 @@ Advanced cryptocurrency trading bot that operates entirely through Telegram with
 - **📜 Exchange History** - Direct trade and order history from Crypto.com
 - **🔔 Smart Notifications** - Real-time alerts for signals, trades, and system events
 - **🛡️ Advanced Risk Management** - ATR-based stop loss, take profit, and position sizing
+- **🔄 7/24 Background Analysis** - Continuous watchlist monitoring and automatic signal generation
 
 ### 💡 Advanced Features
 - **⚙️ Dynamic Settings Management** - JSON-based runtime configuration system
@@ -22,6 +23,9 @@ Advanced cryptocurrency trading bot that operates entirely through Telegram with
 - **🎯 Precision Trading** - Optimized quantity formatting for different cryptocurrencies
 - **📊 Real-time Performance Analytics** - Detailed trading statistics and health monitoring
 - **💾 Database & Exchange Integration** - Seamless data flow between local DB and exchange
+- **🔄 Background Analyzer** - Continuous monitoring system that never sleeps
+- **🆕 New Coin Detection** - Automatic priority analysis for newly added coins
+- **📱 Analyzer Control** - Start/stop/status commands for background analysis
 
 ### 🎨 Enhanced User Experience
 - **🔄 Real-time Data Sync** - All data directly from Crypto.com Exchange API
@@ -42,6 +46,7 @@ Advanced cryptocurrency trading bot that operates entirely through Telegram with
 │  ├── Interactive Callback Queries          │
 │  ├── Dynamic Settings UI                   │
 │  ├── Active Orders & Positions Display     │
+│  ├── Background Analyzer Control Commands  │
 │  └── Message Handler & Session Management  │
 ├─────────────────────────────────────────────┤
 │  ⚙️ Settings System (telegram_bot/settings_handlers.py) │
@@ -55,6 +60,13 @@ Advanced cryptocurrency trading bot that operates entirely through Telegram with
 │  ├── Real-time Market Data (CCXT)          │
 │  ├── Signal Generation & Confidence        │
 │  └── Risk Assessment & Filtering           │
+├─────────────────────────────────────────────┤
+│  🔄 Background Analyzer (signals/background_analyzer.py) │
+│  ├── 7/24 Continuous Monitoring            │
+│  ├── Automatic Watchlist Analysis          │
+│  ├── New Coin Detection & Priority         │
+│  ├── Batch Processing & Error Handling     │
+│  └── Real-time Signal Notifications        │
 ├─────────────────────────────────────────────┤
 │  💱 Exchange API (exchange/crypto_exchange_api.py) │
 │  ├── Crypto.com Direct Integration         │
@@ -162,6 +174,11 @@ python main.py
 - `/help` - Show all available commands and features
 - `/status` - Display bot status, system information, and health metrics
 - `/health` - Perform comprehensive system health check
+
+### 🔄 Background Analysis Commands
+- `/analyzer` - Show background analyzer status and statistics
+- `/start_analyzer` - Start the 7/24 background analysis system
+- `/stop_analyzer` - Stop the background analysis system
 
 ### 💰 Portfolio & Trading Management
 - `/portfolio` - **Enhanced portfolio view** with balances, open orders, and positions
