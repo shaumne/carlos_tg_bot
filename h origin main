@@ -1,3 +1,0 @@
-[33m0594d32[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m Fix Invalid limit error in history API calls
-[33mad41255[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m Fix history and portfolio to use exchange API directly
-[33m3681318[m Fix Crypto.com API compliance for quantity format
