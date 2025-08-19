@@ -1043,22 +1043,16 @@ The background analysis system is not running."""
                 status_text = f"""
 {status_emoji} <b>Background Analyzer Status</b>
 
-<b>Status:</b> {'Running' if status['is_running'] else 'Stopped'}
+<b>Status:</b> {'🟢 Running' if status['is_running'] else '🔴 Stopped'}
 <b>Analysis Interval:</b> {status['analysis_interval']} seconds
-<b>Batch Size:</b> {status['batch_size']} coins
 
-<b>📊 Statistics:</b>
+<b>📊 Current Session:</b>
 • Total Coins: {status['stats']['total_coins']}
-• Analyzed: {status['stats']['analyzed_coins']}
 • BUY Signals: {status['stats']['buy_signals']}
 • SELL Signals: {status['stats']['sell_signals']}
-• Failed Analysis: {status['stats']['failed_analysis']}
-• Avg Analysis Time: {status['stats']['average_analysis_time']:.2f}s
-
-<b>🔧 System Info:</b>
-• Failed Symbols: {status['failed_symbols_count']}
-• New Coins Pending: {status['new_coins_pending']}
 • Last Run: {status['stats']['last_run_time'] or 'Never'}
+
+<b>💡 Note:</b> Only BUY/SELL signals and new coin notifications are sent automatically.
                 """
             
             await self._send_response(update, status_text)

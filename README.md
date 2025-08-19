@@ -23,9 +23,10 @@ Advanced cryptocurrency trading bot that operates entirely through Telegram with
 - **🎯 Precision Trading** - Optimized quantity formatting for different cryptocurrencies
 - **📊 Real-time Performance Analytics** - Detailed trading statistics and health monitoring
 - **💾 Database & Exchange Integration** - Seamless data flow between local DB and exchange
-- **🔄 Background Analyzer** - Continuous monitoring system that never sleeps
+- **🔄 Background Analyzer** - Silent monitoring system that only sends signals
 - **🆕 New Coin Detection** - Automatic priority analysis for newly added coins
 - **📱 Analyzer Control** - Start/stop/status commands for background analysis
+- **🔕 Silent Operation** - No spam messages, only BUY/SELL signals and new coins
 
 ### 🎨 Enhanced User Experience
 - **🔄 Real-time Data Sync** - All data directly from Crypto.com Exchange API

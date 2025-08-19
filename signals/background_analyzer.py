@@ -116,14 +116,7 @@ class BackgroundAnalyzer:
                 cycle_time = time.time() - cycle_start_time
                 self.stats.average_analysis_time = cycle_time
                 
-                # Her 10 döngüde bir istatistik gönder
-                if hasattr(self, '_cycle_count'):
-                    self._cycle_count += 1
-                else:
-                    self._cycle_count = 1
-                
-                if self._cycle_count % 10 == 0:  # Her 10 döngüde bir (yaklaşık 5 dakikada)
-                    await self._send_stats_update()
+                # İstatistik mesajları kaldırıldı - sadece sinyal bildirimları gönderilecek
                 
                 # Başarılı döngü - error counter'ı sıfırla
                 consecutive_errors = 0
@@ -327,18 +320,9 @@ class BackgroundAnalyzer:
     async def _send_startup_notification(self):
         """Başlangıç bildirimi"""
         try:
-            message = """🚀 <b>Background Analysis System Started</b>
+            message = """🚀 <b>Background Analysis Started</b>
 
-• <b>Status:</b> 7/24 Continuous Monitoring Active
-• <b>Analysis Interval:</b> {interval} seconds
-• <b>Batch Size:</b> {batch_size} coins
-• <b>Start Time:</b> {time}
-
-The system will now automatically analyze watchlist coins and send BUY/SELL signals.""".format(
-                interval=self.analysis_interval,
-                batch_size=self.batch_size,
-                time=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            )
+7/24 automatic signal monitoring is now active."""
             
             await self.telegram_bot._send_response_to_all_users(message)
             
@@ -348,14 +332,9 @@ The system will now automatically analyze watchlist coins and send BUY/SELL sign
     async def _send_shutdown_notification(self):
         """Kapanış bildirimi"""
         try:
-            message = f"""🛑 <b>Background Analysis System Stopped</b>
+            message = """🛑 <b>Background Analysis Stopped</b>
 
-• <b>Stop Time:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-• <b>Total Coins Analyzed:</b> {self.stats.analyzed_coins}
-• <b>BUY Signals Generated:</b> {self.stats.buy_signals}
-• <b>SELL Signals Generated:</b> {self.stats.sell_signals}
-
-System monitoring has been stopped."""
+Automatic signal monitoring has been stopped."""
             
             await self.telegram_bot._send_response_to_all_users(message)
             
@@ -366,38 +345,16 @@ System monitoring has been stopped."""
         """Yeni coin bildirimi"""
         try:
             coins_list = ", ".join(sorted(new_coins))
-            message = f"""🆕 <b>New Coins Added to Watchlist</b>
+            message = f"""🆕 <b>New Coins Added</b>
 
-<b>Coins:</b> {coins_list}
-
-These coins will be analyzed with priority in the next cycle."""
+{coins_list} - analyzing with priority..."""
             
             await self.telegram_bot._send_response_to_all_users(message)
             
         except Exception as e:
             logger.error(f"Error sending new coins notification: {str(e)}")
     
-    async def _send_stats_update(self):
-        """İstatistik güncelleme bildirimi"""
-        try:
-            runtime = datetime.now() - (self.stats.last_run_time or datetime.now())
-            
-            message = f"""📊 <b>Analysis Statistics Update</b>
-
-• <b>Total Coins:</b> {self.stats.total_coins}
-• <b>Successfully Analyzed:</b> {self.stats.analyzed_coins}
-• <b>BUY Signals:</b> {self.stats.buy_signals}
-• <b>SELL Signals:</b> {self.stats.sell_signals}
-• <b>Failed Analysis:</b> {self.stats.failed_analysis}
-• <b>Avg Analysis Time:</b> {self.stats.average_analysis_time:.2f}s
-• <b>Last Update:</b> {(self.stats.last_run_time or datetime.now()).strftime('%H:%M:%S')}
-
-System is running continuously..."""
-            
-            await self.telegram_bot._send_response_to_all_users(message)
-            
-        except Exception as e:
-            logger.error(f"Error sending stats update: {str(e)}")
+# İstatistik güncelleme mesajları kaldırıldı - sadece sinyal bildirimları
     
     async def _send_error_notification(self, error_message: str):
         """Hata bildirimi"""
