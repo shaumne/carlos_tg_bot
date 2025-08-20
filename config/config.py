@@ -20,6 +20,7 @@ class TelegramConfig:
     chat_id: str
     authorized_users: List[int]
     admin_users: List[int]
+    signal_chat_ids: List[str]  # Multiple chat IDs for signal notifications
     webhook_url: Optional[str] = None
     webhook_port: int = 8443
     max_message_length: int = 4096
@@ -241,11 +242,32 @@ class ConfigManager:
         if not isinstance(admin_users, list):
             admin_users = [admin_users] if admin_users else []
         
+        # Signal chat IDs - multiple chats for signal notifications
+        signal_chat_ids_env = os.getenv('TELEGRAM_SIGNAL_CHAT_IDS', chat_id)  # Default to main chat
+        if signal_chat_ids_env:
+            try:
+                signal_chat_ids = json.loads(signal_chat_ids_env)
+                # Ensure it's a list
+                if not isinstance(signal_chat_ids, list):
+                    signal_chat_ids = [signal_chat_ids] if signal_chat_ids else [chat_id]
+            except json.JSONDecodeError:
+                # Comma-separated list olarak da kabul et
+                signal_chat_ids = [x.strip() for x in signal_chat_ids_env.split(',') if x.strip()]
+        else:
+            signal_chat_ids = config_section.get('signal_chat_ids', [chat_id])
+        
+        # Ensure signal_chat_ids is always a list and not empty
+        if not isinstance(signal_chat_ids, list):
+            signal_chat_ids = [signal_chat_ids] if signal_chat_ids else [chat_id]
+        if not signal_chat_ids:
+            signal_chat_ids = [chat_id]
+        
         return TelegramConfig(
             bot_token=bot_token,
             chat_id=chat_id,
             authorized_users=authorized_users,
             admin_users=admin_users,
+            signal_chat_ids=signal_chat_ids,
             webhook_url=os.getenv('TELEGRAM_WEBHOOK_URL', config_section.get('webhook_url')),
             webhook_port=int(os.getenv('TELEGRAM_WEBHOOK_PORT', config_section.get('webhook_port', 8443))),
             max_message_length=config_section.get('max_message_length', 4096),

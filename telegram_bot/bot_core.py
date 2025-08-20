@@ -2522,14 +2522,14 @@ History will appear here after you place trades.
 ⏰ {datetime.now().strftime('%H:%M:%S')}
             """
             
-            # GUARANTEED DELIVERY SYSTEM
-            total_users = len(self.config.telegram.authorized_users)
+            # GUARANTEED DELIVERY SYSTEM - Send to signal chats
+            signal_chat_ids = self.config.telegram.signal_chat_ids
             successful_deliveries = 0
             failed_deliveries = 0
             
-            logger.info(f"🚀 SENDING {action} SIGNAL for {symbol} to {total_users} users...")
+            logger.info(f"🚀 SENDING {action} SIGNAL for {symbol} to {len(signal_chat_ids)} chats...")
             
-            for user_id in self.config.telegram.authorized_users:
+            for chat_id in signal_chat_ids:
                 delivery_success = False
                 
                 # Try multiple delivery methods
@@ -2538,7 +2538,7 @@ History will appear here after you place trades.
                         if attempt == 0:
                             # Method 1: HTML formatting
                             await self.application.bot.send_message(
-                                chat_id=user_id,
+                                chat_id=chat_id,
                                 text=notification_text,
                                 parse_mode=ParseMode.HTML,
                                 disable_web_page_preview=True
@@ -2547,7 +2547,7 @@ History will appear here after you place trades.
                             # Method 2: Markdown formatting
                             markdown_text = notification_text.replace('<b>', '**').replace('</b>', '**')
                             await self.application.bot.send_message(
-                                chat_id=user_id,
+                                chat_id=chat_id,
                                 text=markdown_text,
                                 parse_mode=ParseMode.MARKDOWN,
                                 disable_web_page_preview=True
@@ -2556,37 +2556,37 @@ History will appear here after you place trades.
                             # Method 3: Plain text (no formatting)
                             plain_text = f"{action} SIGNAL: {symbol}\nPrice: ${current_price:.6f}\nConfidence: {confidence:.1f}%\nTime: {datetime.now().strftime('%H:%M:%S')}"
                             await self.application.bot.send_message(
-                                chat_id=user_id,
+                                chat_id=chat_id,
                                 text=plain_text
                             )
                         
                         delivery_success = True
                         successful_deliveries += 1
-                        logger.info(f"✅ Signal delivered to user {user_id} (method {attempt + 1})")
+                        logger.info(f"✅ Signal delivered to chat {chat_id} (method {attempt + 1})")
                         break
                         
                     except Exception as e:
-                        logger.warning(f"⚠️ Delivery attempt {attempt + 1} failed for user {user_id}: {str(e)}")
+                        logger.warning(f"⚠️ Delivery attempt {attempt + 1} failed for chat {chat_id}: {str(e)}")
                         if attempt < 2:
                             await asyncio.sleep(0.5)  # Wait between attempts
                 
                 if not delivery_success:
                     failed_deliveries += 1
-                    logger.error(f"❌ FAILED to deliver signal to user {user_id} after 3 attempts")
+                    logger.error(f"❌ FAILED to deliver signal to chat {chat_id} after 3 attempts")
                     
                     # Emergency log
                     try:
                         with open("logs/failed_signals.log", "a") as f:
-                            f.write(f"{datetime.now().isoformat()} - FAILED DELIVERY: {action} {symbol} to {user_id}\n")
+                            f.write(f"{datetime.now().isoformat()} - FAILED DELIVERY: {action} {symbol} to {chat_id}\n")
                     except:
                         pass
             
             # Final delivery report
-            logger.info(f"📊 SIGNAL DELIVERY REPORT: {successful_deliveries}/{total_users} successful, {failed_deliveries} failed")
+            logger.info(f"📊 SIGNAL DELIVERY REPORT: {successful_deliveries}/{len(signal_chat_ids)} successful, {failed_deliveries} failed")
             
             # Critical alert if no deliveries succeeded
             if successful_deliveries == 0:
-                logger.critical(f"🚨 CRITICAL: NO USERS RECEIVED {action} SIGNAL FOR {symbol}!")
+                logger.critical(f"🚨 CRITICAL: NO CHATS RECEIVED {action} SIGNAL FOR {symbol}!")
                 
                 # Emergency notification file
                 try:

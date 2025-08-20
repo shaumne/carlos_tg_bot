@@ -324,7 +324,7 @@ class BackgroundAnalyzer:
 
 7/24 automatic signal monitoring is now active."""
             
-            await self.telegram_bot._send_response_to_all_users(message)
+            await self._send_to_signal_chats(message)
             
         except Exception as e:
             logger.error(f"Error sending startup notification: {str(e)}")
@@ -336,7 +336,7 @@ class BackgroundAnalyzer:
 
 Automatic signal monitoring has been stopped."""
             
-            await self.telegram_bot._send_response_to_all_users(message)
+            await self._send_to_signal_chats(message)
             
         except Exception as e:
             logger.error(f"Error sending shutdown notification: {str(e)}")
@@ -349,13 +349,39 @@ Automatic signal monitoring has been stopped."""
 
 {coins_list} - analyzing with priority..."""
             
-            await self.telegram_bot._send_response_to_all_users(message)
+            await self._send_to_signal_chats(message)
             
         except Exception as e:
             logger.error(f"Error sending new coins notification: {str(e)}")
     
 # İstatistik güncelleme mesajları kaldırıldı - sadece sinyal bildirimları
     
+    async def _send_to_signal_chats(self, message: str):
+        """Send message to all configured signal chats"""
+        try:
+            signal_chat_ids = self.config.telegram.signal_chat_ids
+            successful_sends = 0
+            
+            for chat_id in signal_chat_ids:
+                try:
+                    await self.telegram_bot.application.bot.send_message(
+                        chat_id=chat_id,
+                        text=message,
+                        parse_mode="HTML",
+                        disable_web_page_preview=True
+                    )
+                    successful_sends += 1
+                    logger.debug(f"Message sent to signal chat {chat_id}")
+                except Exception as e:
+                    logger.error(f"Failed to send message to signal chat {chat_id}: {str(e)}")
+            
+            logger.info(f"Signal message sent to {successful_sends}/{len(signal_chat_ids)} chats")
+            return successful_sends > 0
+            
+        except Exception as e:
+            logger.error(f"Error in _send_to_signal_chats: {str(e)}")
+            return False
+
     async def _send_error_notification(self, error_message: str):
         """Hata bildirimi"""
         try:
@@ -366,7 +392,7 @@ Automatic signal monitoring has been stopped."""
 
 Please check the system logs for more details."""
             
-            await self.telegram_bot._send_response_to_all_users(message)
+            await self._send_to_signal_chats(message)
             
         except Exception as e:
             logger.error(f"Error sending error notification: {str(e)}")
