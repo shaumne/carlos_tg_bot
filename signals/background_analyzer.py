@@ -253,7 +253,7 @@ class BackgroundAnalyzer:
                     return False
             
             # Sinyal analizi yap
-            signal = await self.signal_engine.analyze_symbol(symbol)
+            signal = self.signal_engine.analyze_symbol(symbol)
             
             if not signal:
                 logger.warning(f"No signal generated for {symbol}")
