@@ -45,8 +45,12 @@ class BackgroundAnalyzer:
         # Cache ve takip sistemleri
         self._last_analysis_times = {}  # {symbol: timestamp}
         self._previous_signals = {}     # {symbol: signal_type}
+        self._last_signal_times = {}    # {symbol: {signal_type: timestamp}} - Cooldown için
         self._failed_symbols = set()    # Başarısız analiz edilen symboller
         self._new_coins_detected = set()  # Yeni tespit edilen coinler
+        
+        # Cooldown ayarları
+        self.signal_cooldown_minutes = 60  # Aynı yöndeki sinyal için 60 dakika cooldown
         
         # İstatistikler
         self.stats = AnalysisStats()
@@ -55,7 +59,7 @@ class BackgroundAnalyzer:
         self.is_running = False
         self._stop_event = asyncio.Event()
         
-        logger.info(f"Background Analyzer initialized - Analysis interval: {self.analysis_interval}s")
+        logger.info(f"Background Analyzer initialized - Analysis interval: {self.analysis_interval}s, Signal cooldown: {self.signal_cooldown_minutes}min")
     
     async def start(self):
         """Background analyzer'ı başlat"""
@@ -273,10 +277,29 @@ class BackgroundAnalyzer:
                 else:
                     self.stats.sell_signals += 1
                 
-                # Sinyal değişti mi veya yeni coin mi?
-                if signal_changed or is_priority:
+                # Sinyal gönderilmesi kontrolü (cooldown + değişiklik)
+                should_send = False
+                send_reason = ""
+                
+                # 1. Sinyal değişti mi? (WAIT->BUY, BUY->SELL, etc.)
+                if signal_changed:
+                    should_send = True
+                    send_reason = "Signal changed"
+                # 2. Yeni coin mi?
+                elif is_priority:
+                    should_send = True
+                    send_reason = "New coin"
+                # 3. Aynı sinyal ama cooldown geçti mi?
+                elif self._can_send_signal(symbol, signal.signal_type):
+                    should_send = True
+                    send_reason = "Cooldown expired"
+                
+                if should_send:
                     await self._send_signal_notification(signal, is_new_coin=is_priority)
-                    logger.info(f"📡 {signal.signal_type} signal sent for {symbol} (New: {is_priority}, Changed: {signal_changed})")
+                    self._record_signal_sent(symbol, signal.signal_type)
+                    logger.info(f"📡 {signal.signal_type} signal sent for {symbol} ({send_reason})")
+                else:
+                    logger.debug(f"🔇 {signal.signal_type} signal for {symbol} suppressed (cooldown active)")
             
             # Önceki sinyali güncelle
             self._previous_signals[symbol] = signal.signal_type
@@ -290,6 +313,54 @@ class BackgroundAnalyzer:
         except Exception as e:
             logger.error(f"Error analyzing {symbol}: {str(e)}")
             return False
+    
+    def _can_send_signal(self, symbol: str, signal_type: str) -> bool:
+        """Check if signal can be sent (cooldown control)"""
+        try:
+            current_time = time.time()
+            
+            # Yeni coin ise her zaman gönder
+            if symbol in self._new_coins_detected:
+                return True
+            
+            # Bu symbol için daha önce bu sinyal gönderildi mi?
+            if symbol not in self._last_signal_times:
+                return True
+            
+            symbol_signals = self._last_signal_times[symbol]
+            if signal_type not in symbol_signals:
+                return True
+            
+            # Cooldown süresini kontrol et
+            last_signal_time = symbol_signals[signal_type]
+            cooldown_seconds = self.signal_cooldown_minutes * 60
+            time_since_last = current_time - last_signal_time
+            
+            if time_since_last >= cooldown_seconds:
+                return True
+            
+            # Cooldown aktif
+            remaining_minutes = (cooldown_seconds - time_since_last) / 60
+            logger.debug(f"Signal cooldown active for {symbol} {signal_type}: {remaining_minutes:.1f} minutes remaining")
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error checking signal cooldown for {symbol}: {str(e)}")
+            return True  # Hata durumunda gönder
+    
+    def _record_signal_sent(self, symbol: str, signal_type: str):
+        """Record that a signal was sent"""
+        try:
+            current_time = time.time()
+            
+            if symbol not in self._last_signal_times:
+                self._last_signal_times[symbol] = {}
+            
+            self._last_signal_times[symbol][signal_type] = current_time
+            logger.debug(f"Recorded signal sent: {symbol} {signal_type}")
+            
+        except Exception as e:
+            logger.error(f"Error recording signal sent for {symbol}: {str(e)}")
     
     async def _send_signal_notification(self, signal: TradingSignal, is_new_coin: bool = False):
         """Sinyal bildirimi gönder"""
@@ -413,5 +484,7 @@ Please check the system logs for more details."""
                 'average_analysis_time': self.stats.average_analysis_time
             },
             'failed_symbols_count': len(self._failed_symbols),
-            'new_coins_pending': len(self._new_coins_detected)
+            'new_coins_pending': len(self._new_coins_detected),
+            'signal_cooldown_minutes': self.signal_cooldown_minutes,
+            'cooldown_active_count': len(self._last_signal_times)
         }
