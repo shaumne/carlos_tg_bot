@@ -26,6 +26,7 @@ sys.path.insert(0, str(project_root))
 
 # Core imports
 from config.config import ConfigManager, get_config
+from config.dynamic_settings import DynamicSettingsManager
 from database.database_manager import DatabaseManager
 from utils.logging_setup import setup_logging, create_logger, log_startup_info, log_shutdown_info
 from telegram_bot.bot_core import TelegramTradingBot
@@ -36,11 +37,12 @@ config_manager = None
 database_manager = None
 telegram_bot = None
 background_analyzer = None
+dynamic_settings_manager = None
 logger = None
 
 async def initialize_system():
     """Initialize all system components"""
-    global config_manager, database_manager, logger
+    global config_manager, database_manager, dynamic_settings_manager, logger
     
     try:
         # 1. Load configuration
@@ -65,7 +67,26 @@ async def initialize_system():
         stats = database_manager.get_database_stats()
         logger.info(f"✅ Database initialized - {stats['db_size_mb']} MB")
         
-        # 3. Log startup information
+        # 3. Apply dynamic settings from database
+        logger.info("⚙️ Applying dynamic settings from database...")
+        try:
+            dynamic_settings_manager = DynamicSettingsManager(config_manager, database_manager)
+            settings_applied = dynamic_settings_manager.apply_runtime_settings(config_manager)
+            if settings_applied:
+                logger.info("✅ Dynamic settings applied successfully")
+                
+                # Log updated values
+                logger.info(f"🔧 Updated Settings:")
+                logger.info(f"  - Auto trading: {config_manager.trading.enable_auto_trading}")
+                logger.info(f"  - Trade amount: {config_manager.trading.trade_amount} USDT")
+                logger.info(f"  - Max positions: {config_manager.trading.max_positions}")
+                logger.info(f"  - Risk per trade: {config_manager.trading.risk_per_trade}%")
+            else:
+                logger.warning("⚠️ No dynamic settings applied")
+        except Exception as e:
+            logger.error(f"❌ Failed to apply dynamic settings: {str(e)}")
+        
+        # 4. Log startup information
         config_summary = config_manager.get_config_summary()
         log_startup_info(logger, config_summary)
         
