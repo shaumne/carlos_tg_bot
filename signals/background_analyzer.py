@@ -52,6 +52,10 @@ class BackgroundAnalyzer:
         # Cooldown ayarları
         self.signal_cooldown_minutes = 60  # Aynı yöndeki sinyal için 60 dakika cooldown
         
+        # Trade execution import
+        self._trade_executor_module = None
+        self._load_trade_executor()
+        
         # İstatistikler
         self.stats = AnalysisStats()
         
@@ -295,9 +299,18 @@ class BackgroundAnalyzer:
                     send_reason = "Cooldown expired"
                 
                 if should_send:
+                    # Send signal notification
                     await self._send_signal_notification(signal, is_new_coin=is_priority)
                     self._record_signal_sent(symbol, signal.signal_type)
                     logger.info(f"📡 {signal.signal_type} signal sent for {symbol} ({send_reason})")
+                    
+                    # Execute trade if it's BUY or SELL signal
+                    if signal.signal_type in ["BUY", "SELL"]:
+                        trade_result = self._execute_trade(signal)
+                        if trade_result:
+                            logger.info(f"💰 {signal.signal_type} trade executed for {symbol}")
+                        else:
+                            logger.debug(f"💤 Trade execution skipped/failed for {symbol}")
                 else:
                     logger.debug(f"🔇 {signal.signal_type} signal for {symbol} suppressed (cooldown active)")
             
@@ -361,6 +374,62 @@ class BackgroundAnalyzer:
             
         except Exception as e:
             logger.error(f"Error recording signal sent for {symbol}: {str(e)}")
+    
+    def _load_trade_executor(self):
+        """Load trade executor module"""
+        try:
+            import trade_executor
+            self._trade_executor_module = trade_executor
+            logger.info("✅ Trade executor module loaded successfully")
+        except Exception as e:
+            logger.error(f"❌ Failed to load trade executor: {str(e)}")
+            self._trade_executor_module = None
+    
+    def _execute_trade(self, signal: TradingSignal):
+        """Execute trade based on signal"""
+        try:
+            # Check if auto trading is enabled
+            if not self.config.trading.enable_auto_trading:
+                logger.debug(f"Auto trading disabled for {signal.symbol}")
+                return False
+            
+            # Check if trade executor is available
+            if not self._trade_executor_module:
+                logger.warning(f"Trade executor not available for {signal.symbol}")
+                return False
+            
+            # Check if execute_trade function exists
+            if not hasattr(self._trade_executor_module, 'execute_trade'):
+                logger.error(f"execute_trade function not found in trade_executor module")
+                return False
+            
+            # Prepare trade signal data
+            trade_data = {
+                'symbol': signal.symbol,
+                'action': signal.signal_type,
+                'price': signal.price,
+                'confidence': signal.confidence,
+                'original_symbol': signal.symbol,
+                'row_index': 1,
+                'take_profit': signal.price * (1.1 if signal.signal_type == 'BUY' else 0.9),
+                'stop_loss': signal.price * (0.95 if signal.signal_type == 'BUY' else 1.05),
+                'reasoning': '; '.join(signal.reasoning)
+            }
+            
+            # Execute the trade
+            logger.info(f"🔄 Executing {signal.signal_type} trade for {signal.symbol} at ${signal.price}")
+            result = self._trade_executor_module.execute_trade(trade_data)
+            
+            if result:
+                logger.info(f"✅ Trade executed successfully: {signal.symbol} {signal.signal_type}")
+                return True
+            else:
+                logger.warning(f"❌ Trade execution failed: {signal.symbol} {signal.signal_type}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"❌ Error executing trade for {signal.symbol}: {str(e)}")
+            return False
     
     async def _send_signal_notification(self, signal: TradingSignal, is_new_coin: bool = False):
         """Sinyal bildirimi gönder"""
