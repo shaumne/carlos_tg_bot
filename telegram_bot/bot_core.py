@@ -2506,6 +2506,34 @@ History will appear here after you place trades.
             strength_emoji = "🔥" if confidence >= 80 else "⚡" if confidence >= 60 else "📊"
             new_coin_prefix = "🆕 NEW COIN - " if is_new_coin else ""
             
+            # Calculate TP and SL levels
+            tp_price = None
+            sl_price = None
+            
+            if action == 'BUY':
+                # BUY için: TP yukarıda, SL aşağıda
+                tp_percentage = self.config.trading.take_profit_percentage  # %10
+                sl_percentage = self.config.trading.stop_loss_percentage    # %5
+                
+                tp_price = current_price * (1 + tp_percentage / 100)
+                sl_price = current_price * (1 - sl_percentage / 100)
+                
+            elif action == 'SELL':
+                # SELL için: TP aşağıda, SL yukarıda (short position)
+                tp_percentage = self.config.trading.take_profit_percentage  # %10
+                sl_percentage = self.config.trading.stop_loss_percentage    # %5
+                
+                tp_price = current_price * (1 - tp_percentage / 100)
+                sl_price = current_price * (1 + sl_percentage / 100)
+            
+            # TP/SL section
+            tp_sl_section = ""
+            if tp_price and sl_price:
+                tp_sl_section = f"""
+<b>🎯 Targets:</b>
+• Take Profit: ${tp_price:.6f}
+• Stop Loss: ${sl_price:.6f}"""
+            
             # Create enhanced notification
             notification_text = f"""
 {action_emoji} <b>{new_coin_prefix}{action} SIGNAL</b> {strength_emoji}
@@ -2513,11 +2541,7 @@ History will appear here after you place trades.
 <b>📊 {symbol}</b>
 • Price: ${current_price:.6f}
 • Confidence: {confidence:.1f}%{volume_info}
-• Reason: {reasoning}
-
-<b>📈 Technical:</b>
-• RSI: {indicators.get('rsi', 'N/A')}
-• ATR: {indicators.get('atr', 'N/A')}
+• Reason: {reasoning}{tp_sl_section}
 
 ⏰ {datetime.now().strftime('%H:%M:%S')}
             """
