@@ -272,29 +272,34 @@ class SimpleTradeExecutor:
     
     def buy_coin(self, instrument_name, amount_usd):
         """Buy coin with specified USD amount using market order"""
-        # Ensure proper instrument name format for Crypto.com spot trading
+        # Follow trade_executor.py formatting logic
         original_instrument = instrument_name
         
-        # Try different spot trading formats based on trading currency
+        # Apply trade_executor.py symbol formatting first
+        # Format for API: append _USDT if not already in pair format
+        if '_' not in instrument_name and '/' not in instrument_name:
+            formatted_pair = f"{instrument_name}_USDT"
+        elif '/' in instrument_name:
+            formatted_pair = instrument_name.replace('/', '_')
+        else:
+            formatted_pair = instrument_name
+        
+        # Now apply currency-specific formatting based on trading currency
         if hasattr(self, 'trading_currency') and self.trading_currency == "USD":
             # For USD balance, try USD spot formats
-            if "_USDT" in instrument_name:
-                base_currency = instrument_name.split("_")[0]
+            if "_USDT" in formatted_pair:
+                base_currency = formatted_pair.split("_")[0]
                 # Try different USD spot formats
                 possible_formats = [
-                    f"{base_currency}USD",      # SOLUSD (no underscore)
+                    f"{base_currency}_USDT",    # Original USDT format as fallback
                     f"{base_currency}_USD",     # SOL_USD (with underscore)
-                    instrument_name             # Keep original as fallback
+                    f"{base_currency}USD",      # SOLUSD (no underscore)
                 ]
             else:
-                possible_formats = [instrument_name]
+                possible_formats = [formatted_pair]
         else:
-            # For USDT, ensure _USDT format
-            if '_' not in instrument_name and '/' not in instrument_name:
-                instrument_name = f"{instrument_name}_USDT"
-            elif '/' in instrument_name:
-                instrument_name = instrument_name.replace('/', '_')
-            possible_formats = [instrument_name]
+            # For USDT, use the formatted pair
+            possible_formats = [formatted_pair]
         
         # Try each format until one works
         for format_attempt in possible_formats:
@@ -337,31 +342,36 @@ class SimpleTradeExecutor:
     def sell_coin(self, instrument_name, quantity):
         """Sell a specified quantity of a coin using MARKET order"""
         try:
-            # Ensure proper instrument name format for Crypto.com spot trading
+            # Follow trade_executor.py formatting logic
             original_instrument = instrument_name
             
-            # Try different spot trading formats based on trading currency
+            # Apply trade_executor.py symbol formatting first
+            # Format for API: append _USDT if not already in pair format
+            if '_' not in instrument_name and '/' not in instrument_name:
+                formatted_pair = f"{instrument_name}_USDT"
+            elif '/' in instrument_name:
+                formatted_pair = instrument_name.replace('/', '_')
+            else:
+                formatted_pair = instrument_name
+            
+            # Now apply currency-specific formatting based on trading currency
             if hasattr(self, 'trading_currency') and self.trading_currency == "USD":
                 # For USD balance, try USD spot formats
-                if "_USDT" in instrument_name:
-                    base_currency = instrument_name.split("_")[0]
+                if "_USDT" in formatted_pair:
+                    base_currency = formatted_pair.split("_")[0]
                     # Try different USD spot formats
                     possible_formats = [
-                        f"{base_currency}USD",      # SOLUSD (no underscore)
+                        f"{base_currency}_USDT",    # Original USDT format as fallback
                         f"{base_currency}_USD",     # SOL_USD (with underscore)
-                        instrument_name             # Keep original as fallback
+                        f"{base_currency}USD",      # SOLUSD (no underscore)
                     ]
                 else:
-                    base_currency = instrument_name.replace('USD', '').replace('USDT', '')
-                    possible_formats = [instrument_name]
+                    base_currency = formatted_pair.replace('USD', '').replace('USDT', '')
+                    possible_formats = [formatted_pair]
             else:
-                # For USDT, ensure _USDT format
-                if '_' not in instrument_name and '/' not in instrument_name:
-                    instrument_name = f"{instrument_name}_USDT"
-                elif '/' in instrument_name:
-                    instrument_name = instrument_name.replace('/', '_')
-                base_currency = instrument_name.split('_')[0]
-                possible_formats = [instrument_name]
+                # For USDT, use the formatted pair
+                base_currency = formatted_pair.split('_')[0]
+                possible_formats = [formatted_pair]
             
             logger.info(f"Creating market sell order: SELL {quantity} (trying {len(possible_formats)} formats)")
             
@@ -440,27 +450,33 @@ class SimpleTradeExecutor:
     def get_current_price(self, instrument_name):
         """Get current price for a symbol"""
         try:
-            # Try different spot trading formats based on trading currency
+            # Follow trade_executor.py formatting logic
             original_instrument = instrument_name
             
+            # Apply trade_executor.py symbol formatting first
+            # Format for API: append _USDT if not already in pair format
+            if '_' not in instrument_name and '/' not in instrument_name:
+                formatted_pair = f"{instrument_name}_USDT"
+            elif '/' in instrument_name:
+                formatted_pair = instrument_name.replace('/', '_')
+            else:
+                formatted_pair = instrument_name
+            
+            # Now apply currency-specific formatting based on trading currency
             if hasattr(self, 'trading_currency') and self.trading_currency == "USD":
                 # For USD balance, try USD spot formats
-                if "_USDT" in instrument_name:
-                    base_currency = instrument_name.split("_")[0]
+                if "_USDT" in formatted_pair:
+                    base_currency = formatted_pair.split("_")[0]
                     possible_formats = [
-                        f"{base_currency}USD",      # SOLUSD (no underscore)
+                        f"{base_currency}_USDT",    # Original USDT format as fallback
                         f"{base_currency}_USD",     # SOL_USD (with underscore)
-                        instrument_name             # Keep original as fallback
+                        f"{base_currency}USD",      # SOLUSD (no underscore)
                     ]
                 else:
-                    possible_formats = [instrument_name]
+                    possible_formats = [formatted_pair]
             else:
-                # For USDT, ensure _USDT format
-                if '_' not in instrument_name and '/' not in instrument_name:
-                    instrument_name = f"{instrument_name}_USDT"
-                elif '/' in instrument_name:
-                    instrument_name = instrument_name.replace('/', '_')
-                possible_formats = [instrument_name]
+                # For USDT, use the formatted pair
+                possible_formats = [formatted_pair]
             
             url = f"{self.account_base_url}public/get-ticker"
             
@@ -497,27 +513,33 @@ class SimpleTradeExecutor:
     def place_tp_sl_orders(self, symbol, quantity, take_profit_price, stop_loss_price):
         """Place Take Profit and Stop Loss orders"""
         try:
-            # Determine correct format for TP/SL orders based on trading currency
+            # Follow trade_executor.py formatting logic
             original_symbol = symbol
             
+            # Apply trade_executor.py symbol formatting first
+            # Format for API: append _USDT if not already in pair format
+            if '_' not in symbol and '/' not in symbol:
+                formatted_pair = f"{symbol}_USDT"
+            elif '/' in symbol:
+                formatted_pair = symbol.replace('/', '_')
+            else:
+                formatted_pair = symbol
+            
+            # Now apply currency-specific formatting based on trading currency
             if hasattr(self, 'trading_currency') and self.trading_currency == "USD":
                 # For USD balance, try USD spot formats
-                if "_USDT" in symbol:
-                    base_currency = symbol.split("_")[0]
+                if "_USDT" in formatted_pair:
+                    base_currency = formatted_pair.split("_")[0]
                     possible_formats = [
-                        f"{base_currency}USD",      # SOLUSD (no underscore)
+                        f"{base_currency}_USDT",    # Original USDT format as fallback
                         f"{base_currency}_USD",     # SOL_USD (with underscore)
-                        symbol                      # Keep original as fallback
+                        f"{base_currency}USD",      # SOLUSD (no underscore)
                     ]
                 else:
-                    possible_formats = [symbol]
+                    possible_formats = [formatted_pair]
             else:
-                # For USDT, ensure _USDT format
-                if '_' not in symbol and '/' not in symbol:
-                    symbol = f"{symbol}_USDT"
-                elif '/' in symbol:
-                    symbol = symbol.replace('/', '_')
-                possible_formats = [symbol]
+                # For USDT, use the formatted pair
+                possible_formats = [formatted_pair]
             
             logger.info(f"Placing TP/SL orders for {original_symbol}: TP={take_profit_price}, SL={stop_loss_price}")
             
