@@ -378,11 +378,30 @@ class BackgroundAnalyzer:
     def _load_trade_executor(self):
         """Load trade executor module"""
         try:
-            import trade_executor
-            self._trade_executor_module = trade_executor
-            logger.info("✅ Trade executor module loaded successfully")
+            # Try to import simple trade executor first
+            try:
+                import simple_trade_executor
+                self._trade_executor_module = simple_trade_executor
+                logger.info("✅ Simple trade executor loaded successfully")
+                return
+            except ImportError:
+                logger.warning("Simple trade executor not found, trying original...")
+            
+            # Fallback to original trade executor
+            try:
+                import trade_executor
+                if hasattr(trade_executor, 'execute_trade'):
+                    self._trade_executor_module = trade_executor
+                    logger.info("✅ Original trade executor loaded successfully")
+                else:
+                    logger.warning("❌ execute_trade function not found in trade_executor.py")
+                    self._trade_executor_module = None
+            except Exception as e:
+                logger.error(f"❌ Failed to load original trade executor: {str(e)}")
+                self._trade_executor_module = None
+                
         except Exception as e:
-            logger.error(f"❌ Failed to load trade executor: {str(e)}")
+            logger.error(f"❌ Failed to setup trade executor: {str(e)}")
             self._trade_executor_module = None
     
     def _execute_trade(self, signal: TradingSignal):
