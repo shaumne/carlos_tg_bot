@@ -272,52 +272,98 @@ class SimpleTradeExecutor:
     
     def buy_coin(self, instrument_name, amount_usd):
         """Buy coin with specified USD amount using market order"""
-        # Adjust instrument name based on trading currency
+        # Ensure proper instrument name format for Crypto.com spot trading
+        original_instrument = instrument_name
+        
+        # Try different spot trading formats based on trading currency
         if hasattr(self, 'trading_currency') and self.trading_currency == "USD":
-            # Convert BTC_USDT to BTC_USD if using USD balance
+            # For USD balance, try USD spot formats
             if "_USDT" in instrument_name:
-                instrument_name = instrument_name.replace("_USDT", "_USD")
-                logger.info(f"Using USD trading pair: {instrument_name}")
-        
-        logger.info(f"Creating market buy order for {instrument_name} with ${amount_usd}")
-        
-        method = "private/create-order"
-        params = {
-            "instrument_name": instrument_name,
-            "side": "BUY",
-            "type": "MARKET",
-            "notional": str(float(amount_usd))
-        }
-        
-        response = self.send_request(method, params)
-        
-        if response.get("code") == 0:
-            order_id = response.get("result", {}).get("order_id")
-            if order_id:
-                logger.info(f"BUY order successfully created! Order ID: {order_id}")
-                return order_id
+                base_currency = instrument_name.split("_")[0]
+                # Try different USD spot formats
+                possible_formats = [
+                    f"{base_currency}USD",      # SOLUSD (no underscore)
+                    f"{base_currency}_USD",     # SOL_USD (with underscore)
+                    instrument_name             # Keep original as fallback
+                ]
             else:
-                logger.info(f"BUY order successful, but couldn't find order ID in response")
-                return True
+                possible_formats = [instrument_name]
         else:
-            error_code = response.get("code")
-            error_msg = response.get("message", "Unknown error")
-            logger.error(f"Failed to create BUY order. Error {error_code}: {error_msg}")
-            return False
+            # For USDT, ensure _USDT format
+            if '_' not in instrument_name and '/' not in instrument_name:
+                instrument_name = f"{instrument_name}_USDT"
+            elif '/' in instrument_name:
+                instrument_name = instrument_name.replace('/', '_')
+            possible_formats = [instrument_name]
+        
+        # Try each format until one works
+        for format_attempt in possible_formats:
+            logger.info(f"Trying spot trading format: {format_attempt}")
+            
+            method = "private/create-order"
+            params = {
+                "instrument_name": format_attempt,
+                "side": "BUY",
+                "type": "MARKET",
+                "notional": str(float(amount_usd))
+            }
+            
+            response = self.send_request(method, params)
+            
+            if response.get("code") == 0:
+                order_id = response.get("result", {}).get("order_id")
+                logger.info(f"✅ BUY order successful with format: {format_attempt}")
+                if order_id:
+                    logger.info(f"BUY order successfully created! Order ID: {order_id}")
+                    return order_id
+                else:
+                    logger.info(f"BUY order successful, but couldn't find order ID in response")
+                    return True
+            elif response.get("code") == 209:  # Invalid instrument_name
+                logger.warning(f"Format {format_attempt} not valid, trying next format...")
+                continue
+            else:
+                error_code = response.get("code")
+                error_msg = response.get("message", "Unknown error")
+                logger.error(f"Failed to create BUY order with format {format_attempt}. Error {error_code}: {error_msg}")
+                # Don't continue for non-format errors
+                return False
+        
+        # If all formats failed
+        logger.error(f"All instrument name formats failed for {original_instrument}")
+        logger.error(f"Tried formats: {possible_formats}")
+        return False
     
     def sell_coin(self, instrument_name, quantity):
         """Sell a specified quantity of a coin using MARKET order"""
         try:
-            # Adjust instrument name based on trading currency
+            # Ensure proper instrument name format for Crypto.com spot trading
+            original_instrument = instrument_name
+            
+            # Try different spot trading formats based on trading currency
             if hasattr(self, 'trading_currency') and self.trading_currency == "USD":
-                # Convert BTC_USDT to BTC_USD if using USD balance
+                # For USD balance, try USD spot formats
                 if "_USDT" in instrument_name:
-                    instrument_name = instrument_name.replace("_USDT", "_USD")
-                    logger.info(f"Using USD trading pair for sell: {instrument_name}")
+                    base_currency = instrument_name.split("_")[0]
+                    # Try different USD spot formats
+                    possible_formats = [
+                        f"{base_currency}USD",      # SOLUSD (no underscore)
+                        f"{base_currency}_USD",     # SOL_USD (with underscore)
+                        instrument_name             # Keep original as fallback
+                    ]
+                else:
+                    base_currency = instrument_name.replace('USD', '').replace('USDT', '')
+                    possible_formats = [instrument_name]
+            else:
+                # For USDT, ensure _USDT format
+                if '_' not in instrument_name and '/' not in instrument_name:
+                    instrument_name = f"{instrument_name}_USDT"
+                elif '/' in instrument_name:
+                    instrument_name = instrument_name.replace('/', '_')
+                base_currency = instrument_name.split('_')[0]
+                possible_formats = [instrument_name]
             
-            base_currency = instrument_name.split('_')[0]
-            
-            logger.info(f"Creating market sell order: SELL {quantity} {instrument_name}")
+            logger.info(f"Creating market sell order: SELL {quantity} (trying {len(possible_formats)} formats)")
             
             # Format quantity based on coin requirements
             if base_currency in ["SUI", "BONK", "SHIB", "DOGE", "PEPE"]:
@@ -327,29 +373,43 @@ class SimpleTradeExecutor:
             else:
                 formatted_quantity = "{:.2f}".format(float(quantity))
             
-            method = "private/create-order"
-            params = {
-                "instrument_name": instrument_name,
-                "side": "SELL",
-                "type": "MARKET",
-                "quantity": str(formatted_quantity)
-            }
-            
-            response = self.send_request(method, params)
-            
-            if response.get("code") == 0:
-                order_id = response.get("result", {}).get("order_id")
-                if order_id:
-                    logger.info(f"SELL order successfully created! Order ID: {order_id}")
-                    return order_id
+            # Try each format until one works
+            for format_attempt in possible_formats:
+                logger.info(f"Trying sell with format: {format_attempt}")
+                
+                method = "private/create-order"
+                params = {
+                    "instrument_name": format_attempt,
+                    "side": "SELL",
+                    "type": "MARKET",
+                    "quantity": str(formatted_quantity)
+                }
+                
+                response = self.send_request(method, params)
+                
+                if response.get("code") == 0:
+                    order_id = response.get("result", {}).get("order_id")
+                    logger.info(f"✅ SELL order successful with format: {format_attempt}")
+                    if order_id:
+                        logger.info(f"SELL order successfully created! Order ID: {order_id}")
+                        return order_id
+                    else:
+                        logger.warning(f"SELL order successful, but couldn't find order ID in response")
+                        return True
+                elif response.get("code") == 209:  # Invalid instrument_name
+                    logger.warning(f"Format {format_attempt} not valid, trying next format...")
+                    continue
                 else:
-                    logger.warning(f"SELL order successful, but couldn't find order ID in response")
-                    return True
-            else:
-                error_code = response.get("code")
-                error_msg = response.get("message", "Unknown error")
-                logger.error(f"Failed to create SELL order. Error {error_code}: {error_msg}")
-                return False
+                    error_code = response.get("code")
+                    error_msg = response.get("message", "Unknown error")
+                    logger.error(f"Failed to create SELL order with format {format_attempt}. Error {error_code}: {error_msg}")
+                    # Don't continue for non-format errors
+                    return False
+            
+            # If all formats failed
+            logger.error(f"All instrument name formats failed for {original_instrument}")
+            logger.error(f"Tried formats: {possible_formats}")
+            return False
                 
         except Exception as e:
             logger.error(f"Error in sell_coin for {instrument_name}: {str(e)}")
@@ -380,33 +440,35 @@ class SimpleTradeExecutor:
     def get_current_price(self, instrument_name):
         """Get current price for a symbol"""
         try:
-            # Adjust instrument name based on trading currency
+            # Try different spot trading formats based on trading currency
             original_instrument = instrument_name
+            
             if hasattr(self, 'trading_currency') and self.trading_currency == "USD":
-                # Convert BTC_USDT to BTC_USD if using USD balance
+                # For USD balance, try USD spot formats
                 if "_USDT" in instrument_name:
-                    instrument_name = instrument_name.replace("_USDT", "_USD")
-                    logger.debug(f"Using USD trading pair for price: {instrument_name}")
+                    base_currency = instrument_name.split("_")[0]
+                    possible_formats = [
+                        f"{base_currency}USD",      # SOLUSD (no underscore)
+                        f"{base_currency}_USD",     # SOL_USD (with underscore)
+                        instrument_name             # Keep original as fallback
+                    ]
+                else:
+                    possible_formats = [instrument_name]
+            else:
+                # For USDT, ensure _USDT format
+                if '_' not in instrument_name and '/' not in instrument_name:
+                    instrument_name = f"{instrument_name}_USDT"
+                elif '/' in instrument_name:
+                    instrument_name = instrument_name.replace('/', '_')
+                possible_formats = [instrument_name]
             
             url = f"{self.account_base_url}public/get-ticker"
-            params = {"instrument_name": instrument_name}
             
-            response = requests.get(url, params=params, timeout=30)
-            
-            if response.status_code == 200:
-                response_data = response.json()
-                if response_data.get("code") == 0:
-                    result = response_data.get("result", {})
-                    data = result.get("data", [])
-                    if data:
-                        latest_price = float(data[0].get("a", 0))
-                        logger.debug(f"Current price for {instrument_name}: {latest_price}")
-                        return latest_price
-            
-            # If USD pair fails, try original USDT pair
-            if instrument_name != original_instrument:
-                logger.debug(f"USD pair failed, trying original: {original_instrument}")
-                params = {"instrument_name": original_instrument}
+            # Try each format until one works
+            for format_attempt in possible_formats:
+                logger.debug(f"Trying price format: {format_attempt}")
+                params = {"instrument_name": format_attempt}
+                
                 response = requests.get(url, params=params, timeout=30)
                 
                 if response.status_code == 200:
@@ -416,10 +478,17 @@ class SimpleTradeExecutor:
                         data = result.get("data", [])
                         if data:
                             latest_price = float(data[0].get("a", 0))
-                            logger.debug(f"Current price for {original_instrument}: {latest_price}")
+                            logger.debug(f"✅ Current price for {format_attempt}: {latest_price}")
                             return latest_price
+                    else:
+                        logger.debug(f"API error for {format_attempt}: {response_data.get('message', 'Unknown')}")
+                        continue
+                else:
+                    logger.debug(f"HTTP error for {format_attempt}: {response.status_code}")
+                    continue
             
-            logger.warning(f"Could not get current price for {instrument_name}")
+            logger.warning(f"Could not get current price for any format of {original_instrument}")
+            logger.warning(f"Tried formats: {possible_formats}")
             return None
         except Exception as e:
             logger.error(f"Error getting current price for {instrument_name}: {str(e)}")
@@ -428,15 +497,31 @@ class SimpleTradeExecutor:
     def place_tp_sl_orders(self, symbol, quantity, take_profit_price, stop_loss_price):
         """Place Take Profit and Stop Loss orders"""
         try:
-            # Adjust symbol based on trading currency
+            # Determine correct format for TP/SL orders based on trading currency
+            original_symbol = symbol
+            
             if hasattr(self, 'trading_currency') and self.trading_currency == "USD":
+                # For USD balance, try USD spot formats
                 if "_USDT" in symbol:
-                    symbol = symbol.replace("_USDT", "_USD")
-                    logger.info(f"Using USD trading pair for TP/SL: {symbol}")
+                    base_currency = symbol.split("_")[0]
+                    possible_formats = [
+                        f"{base_currency}USD",      # SOLUSD (no underscore)
+                        f"{base_currency}_USD",     # SOL_USD (with underscore)
+                        symbol                      # Keep original as fallback
+                    ]
+                else:
+                    possible_formats = [symbol]
+            else:
+                # For USDT, ensure _USDT format
+                if '_' not in symbol and '/' not in symbol:
+                    symbol = f"{symbol}_USDT"
+                elif '/' in symbol:
+                    symbol = symbol.replace('/', '_')
+                possible_formats = [symbol]
             
-            logger.info(f"Placing TP/SL orders for {symbol}: TP={take_profit_price}, SL={stop_loss_price}")
+            logger.info(f"Placing TP/SL orders for {original_symbol}: TP={take_profit_price}, SL={stop_loss_price}")
             
-            base_currency = symbol.split('_')[0]
+            base_currency = original_symbol.split('_')[0] if '_' in original_symbol else original_symbol.replace('USD', '').replace('USDT', '')
             
             # Format quantity
             if base_currency in ["SUI", "BONK", "SHIB", "DOGE", "PEPE"]:
@@ -447,37 +532,51 @@ class SimpleTradeExecutor:
             tp_order_id = None
             sl_order_id = None
             
-            # Take Profit Order
-            tp_params = {
-                "instrument_name": symbol,
-                "side": "SELL",
-                "type": "LIMIT",
-                "price": "{:.8f}".format(float(take_profit_price)).rstrip('0').rstrip('.'),
-                "quantity": formatted_quantity
-            }
+            # Try each format for TP/SL orders
+            for format_attempt in possible_formats:
+                logger.info(f"Trying TP/SL with format: {format_attempt}")
+                
+                # Take Profit Order
+                tp_params = {
+                    "instrument_name": format_attempt,
+                    "side": "SELL",
+                    "type": "LIMIT",
+                    "price": "{:.8f}".format(float(take_profit_price)).rstrip('0').rstrip('.'),
+                    "quantity": formatted_quantity
+                }
             
-            tp_response = self.send_request("private/create-order", tp_params)
-            if tp_response and tp_response.get("code") == 0:
-                tp_order_id = tp_response["result"]["order_id"]
-                logger.info(f"✅ TP order placed: {tp_order_id}")
-            else:
-                logger.error(f"❌ Failed to place TP order: {tp_response}")
+                tp_response = self.send_request("private/create-order", tp_params)
+                if tp_response and tp_response.get("code") == 0:
+                    tp_order_id = tp_response["result"]["order_id"]
+                    logger.info(f"✅ TP order placed with format {format_attempt}: {tp_order_id}")
+                elif tp_response and tp_response.get("code") == 209:
+                    logger.warning(f"Format {format_attempt} not valid for TP order, trying next...")
+                    continue
+                else:
+                    logger.error(f"❌ Failed to place TP order with {format_attempt}: {tp_response}")
+                    continue
+                
+                # Stop Loss Order (using same format that worked for TP)
+                sl_params = {
+                    "instrument_name": format_attempt,
+                    "side": "SELL",
+                    "type": "LIMIT",
+                    "price": "{:.8f}".format(float(stop_loss_price)).rstrip('0').rstrip('.'),
+                    "quantity": formatted_quantity
+                }
+                
+                sl_response = self.send_request("private/create-order", sl_params)
+                if sl_response and sl_response.get("code") == 0:
+                    sl_order_id = sl_response["result"]["order_id"]
+                    logger.info(f"✅ SL order placed with format {format_attempt}: {sl_order_id}")
+                else:
+                    logger.error(f"❌ Failed to place SL order with {format_attempt}: {sl_response}")
+                
+                # If we got here, we found a working format - break out of loop
+                break
             
-            # Stop Loss Order
-            sl_params = {
-                "instrument_name": symbol,
-                "side": "SELL",
-                "type": "LIMIT",
-                "price": "{:.8f}".format(float(stop_loss_price)).rstrip('0').rstrip('.'),
-                "quantity": formatted_quantity
-            }
-            
-            sl_response = self.send_request("private/create-order", sl_params)
-            if sl_response and sl_response.get("code") == 0:
-                sl_order_id = sl_response["result"]["order_id"]
-                logger.info(f"✅ SL order placed: {sl_order_id}")
-            else:
-                logger.error(f"❌ Failed to place SL order: {sl_response}")
+            if not tp_order_id and not sl_order_id:
+                logger.error(f"All instrument name formats failed for TP/SL orders: {possible_formats}")
             
             return tp_order_id, sl_order_id
             
