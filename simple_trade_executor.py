@@ -42,6 +42,7 @@ class SimpleTradeExecutor:
         self.account_base_url = "https://api.crypto.com/v2/"
         self.trade_amount = float(config_manager.trading.trade_amount)
         self.min_balance_required = self.trade_amount * 1.05  # 5% buffer for fees
+        self.trading_currency = "USDT"  # Default, may be changed to USD by get_balance
         
         if not self.api_key or not self.api_secret:
             logger.error("API key or secret not found in configuration")
@@ -157,7 +158,7 @@ class SimpleTradeExecutor:
             return {"error": "Failed to parse JSON", "raw": response.text}
     
     def get_balance(self, currency="USDT"):
-        """Get SPOT balance for a specific currency"""
+        """Get SPOT balance for a specific currency, with USD fallback"""
         try:
             # First try spot account specifically
             method = "private/get-account-summary"
@@ -171,37 +172,42 @@ class SimpleTradeExecutor:
                 
                 logger.debug(f"Found {len(accounts)} accounts")
                 
-                # Look for spot account specifically
-                spot_balance = 0
-                margin_balance = 0
+                # Look for both requested currency and USD
+                currency_balance = 0
+                usd_balance = 0
                 
                 for account in accounts:
-                    if account.get("currency") == currency:
-                        available = float(account.get("available", 0))
-                        balance_type = account.get("balance_type", "unknown")
-                        
+                    account_currency = account.get("currency")
+                    available = float(account.get("available", 0))
+                    balance_type = account.get("balance_type", "unknown")
+                    
+                    # Check requested currency (USDT)
+                    if account_currency == currency:
                         logger.debug(f"{currency} account: {balance_type} = {available}")
                         
-                        # Prioritize spot account
-                        if "SPOT" in balance_type.upper() or balance_type == "EXCHANGE":
-                            spot_balance = available
-                            logger.info(f"SPOT {currency} balance: {spot_balance}")
-                        elif "MARGIN" in balance_type.upper():
-                            margin_balance = available
-                            logger.debug(f"MARGIN {currency} balance: {margin_balance}")
-                        elif balance_type == "unknown" and available > 0:
-                            # If type is unknown but positive, assume it's spot
-                            spot_balance = available
-                            logger.info(f"Assumed SPOT {currency} balance: {spot_balance}")
+                        # Only use positive balances (skip negative margin balances)
+                        if available > 0:
+                            currency_balance = available
+                            logger.info(f"Found positive {currency} balance: {available}")
+                        else:
+                            logger.warning(f"Skipping negative {currency} balance: {available} (likely margin)")
+                    
+                    # Check USD as fallback (many exchanges use USD for spot trading)
+                    elif account_currency == "USD" and available > 0:
+                        usd_balance = available
+                        logger.info(f"Found positive USD balance: {available}")
                 
-                # Return spot balance if available, otherwise check margin
-                if spot_balance > 0:
-                    return spot_balance
-                elif margin_balance > 0:
-                    logger.warning(f"Only margin balance available: {margin_balance}")
-                    return 0  # Don't use margin for spot trading
+                # Return currency balance if positive, otherwise use USD
+                if currency_balance > 0:
+                    logger.info(f"Using {currency} balance: {currency_balance}")
+                    return currency_balance
+                elif usd_balance > 0 and currency == "USDT":
+                    logger.info(f"Using USD balance as USDT fallback: {usd_balance}")
+                    # Set the currency to USD for future trading operations
+                    self.trading_currency = "USD"
+                    return usd_balance
                 else:
-                    logger.warning(f"No positive {currency} balance found")
+                    logger.warning(f"No positive balance found for {currency} or USD")
                     return 0
                         
             else:
@@ -266,6 +272,13 @@ class SimpleTradeExecutor:
     
     def buy_coin(self, instrument_name, amount_usd):
         """Buy coin with specified USD amount using market order"""
+        # Adjust instrument name based on trading currency
+        if hasattr(self, 'trading_currency') and self.trading_currency == "USD":
+            # Convert BTC_USDT to BTC_USD if using USD balance
+            if "_USDT" in instrument_name:
+                instrument_name = instrument_name.replace("_USDT", "_USD")
+                logger.info(f"Using USD trading pair: {instrument_name}")
+        
         logger.info(f"Creating market buy order for {instrument_name} with ${amount_usd}")
         
         method = "private/create-order"
@@ -295,6 +308,13 @@ class SimpleTradeExecutor:
     def sell_coin(self, instrument_name, quantity):
         """Sell a specified quantity of a coin using MARKET order"""
         try:
+            # Adjust instrument name based on trading currency
+            if hasattr(self, 'trading_currency') and self.trading_currency == "USD":
+                # Convert BTC_USDT to BTC_USD if using USD balance
+                if "_USDT" in instrument_name:
+                    instrument_name = instrument_name.replace("_USDT", "_USD")
+                    logger.info(f"Using USD trading pair for sell: {instrument_name}")
+            
             base_currency = instrument_name.split('_')[0]
             
             logger.info(f"Creating market sell order: SELL {quantity} {instrument_name}")
@@ -360,6 +380,14 @@ class SimpleTradeExecutor:
     def get_current_price(self, instrument_name):
         """Get current price for a symbol"""
         try:
+            # Adjust instrument name based on trading currency
+            original_instrument = instrument_name
+            if hasattr(self, 'trading_currency') and self.trading_currency == "USD":
+                # Convert BTC_USDT to BTC_USD if using USD balance
+                if "_USDT" in instrument_name:
+                    instrument_name = instrument_name.replace("_USDT", "_USD")
+                    logger.debug(f"Using USD trading pair for price: {instrument_name}")
+            
             url = f"{self.account_base_url}public/get-ticker"
             params = {"instrument_name": instrument_name}
             
@@ -375,6 +403,22 @@ class SimpleTradeExecutor:
                         logger.debug(f"Current price for {instrument_name}: {latest_price}")
                         return latest_price
             
+            # If USD pair fails, try original USDT pair
+            if instrument_name != original_instrument:
+                logger.debug(f"USD pair failed, trying original: {original_instrument}")
+                params = {"instrument_name": original_instrument}
+                response = requests.get(url, params=params, timeout=30)
+                
+                if response.status_code == 200:
+                    response_data = response.json()
+                    if response_data.get("code") == 0:
+                        result = response_data.get("result", {})
+                        data = result.get("data", [])
+                        if data:
+                            latest_price = float(data[0].get("a", 0))
+                            logger.debug(f"Current price for {original_instrument}: {latest_price}")
+                            return latest_price
+            
             logger.warning(f"Could not get current price for {instrument_name}")
             return None
         except Exception as e:
@@ -384,6 +428,12 @@ class SimpleTradeExecutor:
     def place_tp_sl_orders(self, symbol, quantity, take_profit_price, stop_loss_price):
         """Place Take Profit and Stop Loss orders"""
         try:
+            # Adjust symbol based on trading currency
+            if hasattr(self, 'trading_currency') and self.trading_currency == "USD":
+                if "_USDT" in symbol:
+                    symbol = symbol.replace("_USDT", "_USD")
+                    logger.info(f"Using USD trading pair for TP/SL: {symbol}")
+            
             logger.info(f"Placing TP/SL orders for {symbol}: TP={take_profit_price}, SL={stop_loss_price}")
             
             base_currency = symbol.split('_')[0]
