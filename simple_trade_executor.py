@@ -714,21 +714,46 @@ class SimpleTradeExecutor:
             logger.error(f"❌ Error in real trade execution: {str(e)}")
             return False
     
-    def _wait_for_order_fill(self, order_id: str, symbol: str, timeout: int = 60) -> bool:
-        """Wait for order to be filled"""
-        start_time = time.time()
-        while time.time() - start_time < timeout:
-            status = self.get_order_status(order_id)
-            if status == "FILLED":
-                logger.info(f"✅ Order {order_id} filled for {symbol}")
-                return True
-            elif status in ["CANCELED", "REJECTED", "EXPIRED"]:
-                logger.error(f"❌ Order {order_id} failed with status: {status}")
-                return False
-            
-            time.sleep(2)  # Check every 2 seconds
+    def _wait_for_order_fill(self, order_id: str, symbol: str, timeout: int = 150) -> bool:
+        """Wait for order to be filled (following trade_executor.py approach)"""
+        logger.info(f"Starting to monitor order fill for {symbol} with order ID {order_id}")
         
-        logger.warning(f"⏰ Order {order_id} fill timeout after {timeout}s")
+        max_checks = 30  # Same as trade_executor.py
+        checks = 0
+        
+        while checks < max_checks:
+            # Get detailed order information (like trade_executor.py)
+            method = "private/get-order-detail"
+            params = {"order_id": order_id}
+            order_detail = self.send_request(method, params)
+            
+            if order_detail and order_detail.get("code") == 0:
+                result = order_detail.get("result", {})
+                status = result.get("status")
+                cumulative_quantity = float(result.get("cumulative_quantity", 0))
+                
+                logger.info(f"Order {order_id} status: {status}, cumulative_quantity: {cumulative_quantity}")
+                
+                # Order FILLED or partially executed (quantity > 0)
+                if status == "FILLED":
+                    logger.info(f"✅ Order {order_id} fully filled for {symbol}")
+                    return True
+                elif status in ["CANCELED", "REJECTED", "EXPIRED"] and cumulative_quantity > 0:
+                    logger.info(f"✅ Order {order_id} partially filled: {cumulative_quantity} for {symbol}")
+                    return True  # Accept partial fills like trade_executor.py
+                elif status in ["CANCELED", "REJECTED", "EXPIRED"] and cumulative_quantity == 0:
+                    logger.error(f"❌ Order {order_id} failed with status: {status} (no execution)")
+                    return False
+                else:
+                    logger.debug(f"Order {order_id} status: {status}, continuing to monitor...")
+            else:
+                logger.warning(f"Could not get order details for {order_id}")
+            
+            # Wait 5 seconds between checks (like trade_executor.py)
+            time.sleep(5)
+            checks += 1
+        
+        logger.warning(f"⏰ Order {order_id} monitoring timeout after {max_checks} checks")
         return False
     
     def _get_order_details(self, order_id: str) -> Optional[Dict]:
