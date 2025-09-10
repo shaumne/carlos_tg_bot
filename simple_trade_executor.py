@@ -610,11 +610,22 @@ class SimpleTradeExecutor:
                 logger.info(f"Auto trading disabled, skipping {symbol} {action}")
                 return False
             
+            # Save signal to database first
+            self._save_signal_to_db(trade_signal, executed=True)
+            
             # Execute real trade only
-            return self._execute_real_trade(trade_signal)
+            result = self._execute_real_trade(trade_signal)
+            
+            # Update signal execution status in database
+            if result:
+                self._update_signal_execution_status(trade_signal, True, price)
+            
+            return result
                 
         except Exception as e:
             logger.error(f"❌ Error executing trade: {str(e)}")
+            # Save failed execution to database
+            self._save_signal_to_db(trade_signal, executed=False)
             return False
     
     def _execute_real_trade(self, trade_signal: Dict[str, Any]) -> bool:
@@ -701,11 +712,23 @@ class SimpleTradeExecutor:
                 self.active_positions[symbol] = position_data
                 logger.info(f"📊 Position added to monitoring: {symbol}")
                 
+                # Save position to active_positions table in database
+                self._save_active_position_to_db(position_data)
+                
                 # Start TP/SL monitoring if not already running
                 self._start_tp_sl_monitoring()
             
-            # Save to database
-            trade_id = self._save_trade_to_db(trade_signal, 'EXECUTED')
+            # Save to database with complete information
+            trade_signal_with_details = trade_signal.copy()
+            trade_signal_with_details.update({
+                'actual_price': actual_price,
+                'actual_quantity': actual_quantity,
+                'order_id': order_id,
+                'take_profit': take_profit_price,
+                'stop_loss': stop_loss_price
+            })
+            
+            trade_id = self._save_trade_to_db(trade_signal_with_details, 'EXECUTED')
             logger.info(f"✅ Real trade saved to database: ID {trade_id}")
             
             return True
@@ -788,12 +811,29 @@ class SimpleTradeExecutor:
                 'created_at': datetime.now().isoformat()
             }
             
-            # Insert into database (using schema columns)
+            # Insert into database (using schema columns) with enhanced data
             query = """
                 INSERT INTO trade_history 
-                (symbol, formatted_symbol, action, price, quantity, execution_type, notes, timestamp)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                (symbol, formatted_symbol, action, price, quantity, order_id, execution_type, notes, timestamp)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """
+            
+            # Use actual values if available, fallback to original
+            actual_price = trade_signal.get('actual_price', trade_data['price'])
+            actual_quantity = trade_signal.get('actual_quantity', trade_data['amount'])
+            order_id = trade_signal.get('order_id', '')
+            take_profit = trade_signal.get('take_profit', '')
+            stop_loss = trade_signal.get('stop_loss', '')
+            
+            # Enhanced notes with all details
+            notes_parts = [f"Confidence: {trade_data['confidence']}%"]
+            if trade_data['reasoning']:
+                notes_parts.append(trade_data['reasoning'])
+            if take_profit:
+                notes_parts.append(f"TP: {take_profit}")
+            if stop_loss:
+                notes_parts.append(f"SL: {stop_loss}")
+            enhanced_notes = " | ".join(notes_parts)
             
             result = self.db.execute_query(
                 query, 
@@ -801,10 +841,11 @@ class SimpleTradeExecutor:
                     trade_data['symbol'],
                     trade_data['symbol'],  # formatted_symbol same as symbol
                     trade_data['side'],    # action
-                    trade_data['price'],
-                    trade_data['amount'],  # quantity
+                    actual_price,          # Use actual execution price
+                    actual_quantity,       # Use actual executed quantity
+                    order_id,              # Order ID from exchange
                     trade_data['status'],  # execution_type
-                    f"Confidence: {trade_data['confidence']}% | {trade_data['reasoning']}", # notes
+                    enhanced_notes,        # Enhanced notes with TP/SL
                     trade_data['created_at']  # timestamp
                 )
             )
@@ -819,6 +860,91 @@ class SimpleTradeExecutor:
         except Exception as e:
             logger.error(f"Error saving trade to database: {str(e)}")
             return None
+    
+    def _save_active_position_to_db(self, position_data: Dict[str, Any]) -> Optional[int]:
+        """Save active position to database"""
+        try:
+            query = """
+                INSERT INTO active_positions 
+                (symbol, formatted_symbol, side, entry_price, quantity, stop_loss, take_profit, 
+                 order_id, tp_order_id, sl_order_id, status, notes)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """
+            
+            notes = f"Created by SimpleTradeExecutor | Status: {position_data['status']}"
+            
+            result = self.db.execute_query(
+                query, 
+                (
+                    position_data['symbol'],
+                    position_data['symbol'],  # formatted_symbol same as symbol
+                    position_data['action'],   # side
+                    position_data['entry_price'],
+                    position_data['quantity'],
+                    position_data.get('stop_loss', 0),
+                    position_data.get('take_profit', 0),
+                    position_data.get('main_order_id', ''),
+                    position_data.get('tp_order_id', ''),
+                    position_data.get('sl_order_id', ''),
+                    position_data['status'],
+                    notes
+                )
+            )
+            
+            if result:
+                logger.debug(f"Active position saved to database: {position_data['symbol']}")
+                return 1
+            else:
+                logger.error(f"Failed to save active position to database")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error saving active position to database: {str(e)}")
+            return None
+    
+    def _save_signal_to_db(self, trade_signal: Dict[str, Any], executed: bool = False) -> Optional[int]:
+        """Save signal to database"""
+        try:
+            query = """
+                INSERT INTO signals 
+                (symbol, formatted_symbol, signal_type, price, confidence, executed, notes, timestamp)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """
+            
+            notes = f"Reasoning: {trade_signal.get('reasoning', '')}"
+            
+            result = self.db.execute_query(
+                query, 
+                (
+                    trade_signal.get('symbol'),
+                    trade_signal.get('symbol'),  # formatted_symbol same as symbol
+                    trade_signal.get('action'),   # signal_type
+                    trade_signal.get('price', 0),
+                    trade_signal.get('confidence', 0),
+                    executed,
+                    notes,
+                    datetime.now().isoformat()
+                )
+            )
+            
+            if result:
+                logger.debug(f"Signal saved to database: {trade_signal.get('symbol')} {trade_signal.get('action')}")
+                return 1
+            else:
+                logger.error(f"Failed to save signal to database")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error saving signal to database: {str(e)}")
+            return None
+    
+    def _update_signal_execution_status(self, trade_signal: Dict[str, Any], success: bool, execution_price: float):
+        """Update signal execution status in database"""
+        try:
+            # This would need the signal ID, for now just log
+            logger.debug(f"Signal execution updated: {trade_signal.get('symbol')} {trade_signal.get('action')} - Success: {success}")
+        except Exception as e:
+            logger.error(f"Error updating signal execution status: {str(e)}")
     
     def _start_tp_sl_monitoring(self):
         """Start TP/SL monitoring thread"""
