@@ -253,14 +253,14 @@ class SimpleTradeExecutor:
         
         # Now apply currency-specific formatting based on trading currency
         if hasattr(self, 'trading_currency') and self.trading_currency == "USD":
-            # For USD balance, try USD spot formats
+            # For USD balance, try USD spot formats FIRST
             if "_USDT" in formatted_pair:
                 base_currency = formatted_pair.split("_")[0]
-                # Try different USD spot formats
+                # Try USD formats FIRST (highest priority)
                 possible_formats = [
+                    f"{base_currency}_USD",     # SOL_USD (with underscore) - PRIORITY
+                    f"{base_currency}USD",      # SOLUSD (no underscore) - PRIORITY
                     f"{base_currency}_USDT",    # Original USDT format as fallback
-                    f"{base_currency}_USD",     # SOL_USD (with underscore)
-                    f"{base_currency}USD",      # SOLUSD (no underscore)
                 ]
             else:
                 possible_formats = [formatted_pair]
@@ -323,14 +323,14 @@ class SimpleTradeExecutor:
             
             # Now apply currency-specific formatting based on trading currency
             if hasattr(self, 'trading_currency') and self.trading_currency == "USD":
-                # For USD balance, try USD spot formats
+                # For USD balance, try USD spot formats FIRST
                 if "_USDT" in formatted_pair:
                     base_currency = formatted_pair.split("_")[0]
-                    # Try different USD spot formats
+                    # Try USD formats FIRST (highest priority)
                     possible_formats = [
+                        f"{base_currency}_USD",     # SOL_USD (with underscore) - PRIORITY
+                        f"{base_currency}USD",      # SOLUSD (no underscore) - PRIORITY
                         f"{base_currency}_USDT",    # Original USDT format as fallback
-                        f"{base_currency}_USD",     # SOL_USD (with underscore)
-                        f"{base_currency}USD",      # SOLUSD (no underscore)
                     ]
                 else:
                     base_currency = formatted_pair.replace('USD', '').replace('USDT', '')
@@ -431,13 +431,14 @@ class SimpleTradeExecutor:
             
             # Now apply currency-specific formatting based on trading currency
             if hasattr(self, 'trading_currency') and self.trading_currency == "USD":
-                # For USD balance, try USD spot formats
+                # For USD balance, try USD spot formats FIRST
                 if "_USDT" in formatted_pair:
                     base_currency = formatted_pair.split("_")[0]
+                    # Try USD formats FIRST (highest priority)
                     possible_formats = [
+                        f"{base_currency}_USD",     # SOL_USD (with underscore) - PRIORITY
+                        f"{base_currency}USD",      # SOLUSD (no underscore) - PRIORITY
                         f"{base_currency}_USDT",    # Original USDT format as fallback
-                        f"{base_currency}_USD",     # SOL_USD (with underscore)
-                        f"{base_currency}USD",      # SOLUSD (no underscore)
                     ]
                 else:
                     possible_formats = [formatted_pair]
@@ -494,13 +495,14 @@ class SimpleTradeExecutor:
             
             # Now apply currency-specific formatting based on trading currency
             if hasattr(self, 'trading_currency') and self.trading_currency == "USD":
-                # For USD balance, try USD spot formats
+                # For USD balance, try USD spot formats FIRST
                 if "_USDT" in formatted_pair:
                     base_currency = formatted_pair.split("_")[0]
+                    # Try USD formats FIRST (highest priority)
                     possible_formats = [
+                        f"{base_currency}_USD",     # SOL_USD (with underscore) - PRIORITY
+                        f"{base_currency}USD",      # SOLUSD (no underscore) - PRIORITY
                         f"{base_currency}_USDT",    # Original USDT format as fallback
-                        f"{base_currency}_USD",     # SOL_USD (with underscore)
-                        f"{base_currency}USD",      # SOLUSD (no underscore)
                     ]
                 else:
                     possible_formats = [formatted_pair]
