@@ -642,7 +642,7 @@ class SimpleTradeExecutor:
                 # For SELL, we need to get the quantity from current holdings
                 base_currency = symbol.split('_')[0]
                 balance = self.get_balance(base_currency)
-                if balance <= 0:
+                if float(balance) <= 0:
                     logger.error(f"❌ No {base_currency} balance to sell")
                     return False
                 order_id = self.sell_coin(symbol, balance)
@@ -670,12 +670,12 @@ class SimpleTradeExecutor:
             # Get actual executed details
             order_details = self._get_order_details(order_id)
             if order_details:
-                actual_price = order_details.get('avg_price', price)
-                actual_quantity = order_details.get('cumulative_quantity', 0)
+                actual_price = float(order_details.get('avg_price', price))
+                actual_quantity = float(order_details.get('cumulative_quantity', 0))
                 logger.info(f"📊 Actual execution: {actual_quantity} at ${actual_price}")
             else:
-                actual_price = price
-                actual_quantity = amount / price if action == "BUY" else amount
+                actual_price = float(price)
+                actual_quantity = float(amount / price if action == "BUY" else amount)
             
             # Place TP/SL orders only for BUY trades
             if action == "BUY" and actual_quantity > 0:
@@ -906,9 +906,9 @@ class SimpleTradeExecutor:
         """Check if TP or SL conditions are met"""
         try:
             action = position['action']
-            entry_price = position['entry_price']
-            take_profit = position['take_profit']
-            stop_loss = position['stop_loss']
+            entry_price = float(position['entry_price'])
+            take_profit = float(position['take_profit'])
+            stop_loss = float(position['stop_loss'])
             
             if action == "BUY":
                 # BUY position: TP above entry, SL below entry
@@ -939,8 +939,8 @@ class SimpleTradeExecutor:
         try:
             symbol = position['symbol']
             action = position['action']
-            entry_price = position['entry_price']
-            quantity = position.get('quantity', position.get('amount', 0))
+            entry_price = float(position['entry_price'])
+            quantity = float(position.get('quantity', position.get('amount', 0)))
             tp_order_id = position.get('tp_order_id')
             sl_order_id = position.get('sl_order_id')
             
@@ -975,7 +975,7 @@ class SimpleTradeExecutor:
                     logger.warning(f"⚠️ Failed to cancel SL order: {sl_order_id}")
             
             # Execute market sell if needed (for BUY positions)
-            if action == "BUY" and quantity > 0:
+            if action == "BUY" and float(quantity) > 0:
                 sell_order_id = self.sell_coin(symbol, quantity)
                 if sell_order_id:
                     logger.info(f"✅ Market sell executed: {sell_order_id}")
