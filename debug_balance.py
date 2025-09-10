@@ -1,142 +1,133 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 """
-Balance Debug Script
-Detailed analysis of Crypto.com Exchange account balances
+🔍 BALANCE DEBUG KODU
+====================
+Bu kod tüm hesap detaylarını listeler
 """
 
-import json
+import logging
+import sys
 from datetime import datetime
 
-def debug_accounts():
-    """Debug all account types and balances"""
-    print("💰 CRYPTO.COM BALANCE DEBUG")
-    print("=" * 50)
-    print(f"⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print()
+# Setup basic logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s | %(levelname)s | %(message)s',
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
+logger = logging.getLogger(__name__)
+
+def main():
+    """Balance debug"""
+    
+    print(f"""
+{'='*80}
+🔍 BALANCE DEBUG KODU
+{'='*80}
+⏰ Zaman: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+Bu kod tüm hesap detaylarınızı listeler
+""")
     
     try:
+        # Import our modules
         from config.config import ConfigManager
-        from database.database_manager import DatabaseManager
         from config.dynamic_settings import DynamicSettingsManager
-        from simple_trade_executor import SimpleTradeExecutor
+        from database.database_manager import DatabaseManager
+        import simple_trade_executor
         
         # Initialize
         config = ConfigManager()
         db = DatabaseManager(config.database.db_path)
-        dynamic_settings = DynamicSettingsManager(config, db)
-        dynamic_settings.apply_runtime_settings(config)
+        settings = DynamicSettingsManager(config, db)
+        settings.apply_runtime_settings(config)
         
-        executor = SimpleTradeExecutor(config, db)
+        # Create executor
+        executor = simple_trade_executor.SimpleTradeExecutor(config, db)
         
-        print("1️⃣ ACCOUNT SUMMARY API")
-        print("-" * 30)
+        print(f"🔗 API bağlantısı test ediliyor...")
         
-        # Raw API call to get-account-summary
-        response = executor.send_request("private/get-account-summary", {})
+        # Call the API directly to see all accounts
+        method = "private/get-account-summary"
+        params = {}
+        
+        response = executor.send_request(method, params)
+        
+        print(f"📊 API Response:")
+        print(f"   • Code: {response.get('code')}")
+        print(f"   • Message: {response.get('message', 'N/A')}")
         
         if response.get("code") == 0:
             result = response.get("result", {})
             accounts = result.get("accounts", [])
             
-            print(f"📊 Found {len(accounts)} accounts:")
-            print()
+            print(f"\n📋 HESAP DETAYLARI ({len(accounts)} hesap bulundu):")
+            print(f"{'='*80}")
             
             for i, account in enumerate(accounts, 1):
-                currency = account.get("currency", "Unknown")
+                currency = account.get("currency", "UNKNOWN")
                 available = account.get("available", 0)
-                balance = account.get("balance", 0)
-                frozen = account.get("frozen", 0)
                 balance_type = account.get("balance_type", "unknown")
                 
-                print(f"Account {i}:")
-                print(f"  💱 Currency: {currency}")
-                print(f"  💰 Available: {available}")
-                print(f"  🏦 Total Balance: {balance}")
-                print(f"  🧊 Frozen: {frozen}")
-                print(f"  📋 Type: {balance_type}")
+                print(f"Hesap {i}:")
+                print(f"   • Currency: {currency}")
+                print(f"   • Available: {available}")
+                print(f"   • Balance Type: {balance_type}")
+                print(f"   • Positive: {'✅' if float(available) > 0 else '❌'}")
+                print(f"   • Raw Data: {account}")
                 print()
-                
-                # Focus on USDT
-                if currency == "USDT":
-                    print(f"  🎯 USDT DETAILS:")
-                    print(f"     Available: {available}")
-                    print(f"     Balance Type: {balance_type}")
-                    if float(available) < 0:
-                        print(f"     ⚠️ NEGATIVE BALANCE - This might be MARGIN account")
-                    else:
-                        print(f"     ✅ POSITIVE BALANCE - This might be SPOT account")
-                    print()
+            
+            # Specific balance checks
+            print(f"{'='*80}")
+            print(f"💰 SPECIFIC BALANCE CHECKS:")
+            print(f"{'='*80}")
+            
+            currencies_to_check = ["USDT", "USD", "USDC"]
+            
+            for currency in currencies_to_check:
+                balance = executor.get_balance(currency)
+                print(f"   • {currency}: ${balance}")
+            
+            # Check trading currency setting
+            print(f"\n🎯 TRADING CURRENCY:")
+            if hasattr(executor, 'trading_currency'):
+                print(f"   • Current: {executor.trading_currency}")
+            else:
+                print(f"   • Not set")
+            
         else:
-            print(f"❌ API Error: {response.get('code')} - {response.get('message', 'Unknown')}")
+            print(f"❌ API error: {response.get('message', 'Unknown error')}")
+            
+        # Try alternative API endpoint
+        print(f"\n{'='*80}")
+        print(f"🔄 ALTERNATIVE API ENDPOINT TEST:")
+        print(f"{'='*80}")
         
-        print("\n2️⃣ ALTERNATIVE ACCOUNTS API")
-        print("-" * 30)
+        method2 = "private/get-accounts"
+        response2 = executor.send_request(method2, {})
         
-        # Try alternative API
-        response2 = executor.send_request("private/get-accounts", {})
+        print(f"📊 Alternative API Response:")
+        print(f"   • Code: {response2.get('code')}")
+        print(f"   • Message: {response2.get('message', 'N/A')}")
         
         if response2.get("code") == 0:
             accounts2 = response2.get("result", {}).get("accounts", [])
+            print(f"   • Found {len(accounts2)} accounts")
             
-            print(f"📊 Found {len(accounts2)} accounts via alternative API:")
-            print()
-            
-            for i, account in enumerate(accounts2, 1):
-                account_type = account.get("account_type", "unknown")
+            for account in accounts2:
+                account_type = account.get("account_type", "")
                 balances = account.get("balances", [])
-                
-                print(f"Account {i}:")
-                print(f"  📋 Account Type: {account_type}")
-                print(f"  💰 Balances ({len(balances)}):")
+                print(f"   📝 Account Type: {account_type}")
                 
                 for balance in balances:
-                    currency = balance.get("currency", "Unknown")
+                    currency = balance.get("currency")
                     available = balance.get("available", 0)
-                    balance_total = balance.get("balance", 0)
-                    
-                    if currency == "USDT" or float(available) > 0:
-                        print(f"     {currency}: {available} (total: {balance_total})")
-                print()
-        else:
-            print(f"❌ Alternative API Error: {response2.get('code')} - {response2.get('message', 'Unknown')}")
-        
-        print("\n3️⃣ BALANCE TEST RESULTS")
-        print("-" * 30)
-        
-        # Test our balance methods
-        primary_balance = executor.get_balance("USDT")
-        spot_balance = executor.get_spot_balance("USDT")
-        sufficient = executor.has_sufficient_balance("USDT")
-        
-        print(f"🔧 Primary balance method: ${primary_balance}")
-        print(f"🔧 Spot balance method: ${spot_balance}")
-        print(f"🔧 Sufficient balance: {sufficient}")
-        print(f"🔧 Required minimum: ${executor.min_balance_required}")
-        
-        print("\n4️⃣ RECOMMENDATIONS")
-        print("-" * 30)
-        
-        if primary_balance < 0:
-            print("⚠️ NEGATIVE balance detected - This is likely MARGIN account")
-            print("💡 Suggestion: Check if you have separate SPOT account")
-            print("🔧 Action: Transfer funds from margin to spot if needed")
-        elif primary_balance == 0:
-            print("⚠️ ZERO balance detected")
-            print("💡 Suggestion: Deposit USDT to spot account for trading")
-        else:
-            print("✅ POSITIVE balance detected")
-            print("🚀 Ready for trading!")
-        
-        if spot_balance > 0 and spot_balance != primary_balance:
-            print(f"💡 Alternative API found different balance: ${spot_balance}")
-            print("🔧 Using alternative API might be better")
+                    print(f"      • {currency}: {available}")
         
     except Exception as e:
-        print(f"❌ Debug failed: {str(e)}")
+        print(f"❌ Hata: {e}")
         import traceback
-        print(f"📍 Details: {traceback.format_exc()}")
+        traceback.print_exc()
 
 if __name__ == "__main__":
-    debug_accounts()
+    main()

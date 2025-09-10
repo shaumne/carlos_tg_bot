@@ -157,116 +157,83 @@ class SimpleTradeExecutor:
             logger.error(f"Failed to parse response as JSON. Raw response: {response.text}")
             return {"error": "Failed to parse JSON", "raw": response.text}
     
-    def get_balance(self, currency="USDT"):
-        """Get SPOT balance for a specific currency, with USD fallback"""
+    def get_account_summary(self):
+        """Get account summary from the exchange (following trade_executor.py approach)"""
         try:
-            # First try spot account specifically
             method = "private/get-account-summary"
             params = {}
             
+            # Send request
             response = self.send_request(method, params)
             
             if response.get("code") == 0:
-                result = response.get("result", {})
-                accounts = result.get("accounts", [])
-                
-                logger.debug(f"Found {len(accounts)} accounts")
-                
-                # Look for both requested currency and USD
-                currency_balance = 0
-                usd_balance = 0
-                
-                for account in accounts:
-                    account_currency = account.get("currency")
-                    available = float(account.get("available", 0))
-                    balance_type = account.get("balance_type", "unknown")
-                    
-                    # Check requested currency (USDT)
-                    if account_currency == currency:
-                        logger.debug(f"{currency} account: {balance_type} = {available}")
-                        
-                        # Only use positive balances (skip negative margin balances)
-                        if available > 0:
-                            currency_balance = available
-                            logger.info(f"Found positive {currency} balance: {available}")
-                        else:
-                            logger.warning(f"Skipping negative {currency} balance: {available} (likely margin)")
-                    
-                    # Check USD as fallback (many exchanges use USD for spot trading)
-                    elif account_currency == "USD" and available > 0:
-                        usd_balance = available
-                        logger.info(f"Found positive USD balance: {available}")
-                
-                # Return currency balance if positive, otherwise use USD
-                if currency_balance > 0:
-                    logger.info(f"Using {currency} balance: {currency_balance}")
-                    return currency_balance
-                elif usd_balance > 0 and currency == "USDT":
-                    logger.info(f"Using USD balance as USDT fallback: {usd_balance}")
-                    # Set the currency to USD for future trading operations
-                    self.trading_currency = "USD"
-                    return usd_balance
-                else:
-                    logger.warning(f"No positive balance found for {currency} or USD")
-                    return 0
-                        
+                logger.debug("Successfully fetched account summary")
+                return response.get("result")
             else:
                 error_code = response.get("code")
-                error_msg = response.get("message", "Unknown error")
+                error_msg = response.get("message", response.get("msg", "Unknown error"))
                 logger.error(f"API error: {error_code} - {error_msg}")
+            
+            return None
+        except Exception as e:
+            logger.error(f"Error in get_account_summary: {str(e)}")
+            return None
+    
+    def get_balance(self, currency="USDT"):
+        """Get balance for a specific currency (following trade_executor.py approach)"""
+        try:
+            account_summary = self.get_account_summary()
+            if not account_summary or "accounts" not in account_summary:
+                logger.error("Failed to get account summary")
                 return 0
+                
+            # Look for both requested currency and USD
+            currency_balance = 0
+            usd_balance = 0
+            
+            # Find the currency in accounts
+            for account in account_summary["accounts"]:
+                account_currency = account.get("currency")
+                available = float(account.get("available", 0))
+                
+                # Check requested currency
+                if account_currency == currency:
+                    logger.debug(f"Available {currency} balance: {available}")
+                    if available > 0:
+                        currency_balance = available
+                        logger.info(f"Found positive {currency} balance: {available}")
+                
+                # Check USD as fallback (many exchanges use USD for spot trading)
+                elif account_currency == "USD" and available > 0:
+                    usd_balance = available
+                    logger.info(f"Found positive USD balance: {available}")
+            
+            # Return currency balance if positive, otherwise use USD
+            if currency_balance > 0:
+                logger.info(f"Using {currency} balance: {currency_balance}")
+                return currency_balance
+            elif usd_balance > 0 and currency == "USDT":
+                logger.info(f"Using USD balance as USDT fallback: {usd_balance}")
+                # Set the currency to USD for future trading operations
+                self.trading_currency = "USD"
+                return usd_balance
+            else:
+                logger.warning(f"Currency {currency} not found in account")
+                return 0
+                
         except Exception as e:
             logger.error(f"Error in get_balance: {str(e)}")
             return 0
     
-    def get_spot_balance(self, currency="USDT"):
-        """Get specifically SPOT account balance"""
-        try:
-            # Try alternative API endpoint for spot balances
-            method = "private/get-accounts"
-            params = {}
-            
-            response = self.send_request(method, params)
-            
-            if response.get("code") == 0:
-                accounts = response.get("result", {}).get("accounts", [])
-                
-                for account in accounts:
-                    # Look for spot/exchange account
-                    account_type = account.get("account_type", "").upper()
-                    if account_type in ["SPOT", "EXCHANGE", "TRADING"]:
-                        balances = account.get("balances", [])
-                        for balance in balances:
-                            if balance.get("currency") == currency:
-                                available = float(balance.get("available", 0))
-                                logger.info(f"SPOT {currency} balance (alternative API): {available}")
-                                return available
-                
-                logger.warning(f"No spot account found for {currency}")
-                return 0
-            else:
-                logger.debug(f"Alternative API failed: {response.get('message', 'Unknown error')}")
-                return 0
-                
-        except Exception as e:
-            logger.debug(f"Alternative spot balance check failed: {str(e)}")
-            return 0
-    
     def has_sufficient_balance(self, currency="USDT"):
-        """Check if there is sufficient SPOT balance for trading"""
-        # First try primary method
+        """Check if there is sufficient balance for trading (following trade_executor.py approach)"""
         balance = self.get_balance(currency)
-        
-        # If primary fails or returns 0, try alternative spot method
-        if balance <= 0:
-            balance = self.get_spot_balance(currency)
-        
         sufficient = balance >= self.min_balance_required
         
         if sufficient:
-            logger.info(f"Sufficient SPOT balance: {balance} {currency} (required: {self.min_balance_required})")
+            logger.info(f"Sufficient balance: {balance} {currency}")
         else:
-            logger.warning(f"Insufficient SPOT balance: {balance} {currency}, minimum required: {self.min_balance_required}")
+            logger.warning(f"Insufficient balance: {balance} {currency}, minimum required: {self.min_balance_required}")
             
         return sufficient
     
