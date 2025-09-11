@@ -548,12 +548,13 @@ class SimpleTradeExecutor:
                 logger.info(f"Trying TP/SL with format: {format_attempt}")
                 logger.info(f"Current price: {current_market_price}, TP: {take_profit_price}, SL: {stop_loss_price}")
                 
-                # Take Profit Order
+                # Take Profit Order - Clean price formatting
+                clean_tp_price = "{:.2f}".format(float(take_profit_price))
                 tp_params = {
                     "instrument_name": format_attempt,
                     "side": "SELL",
                     "type": "LIMIT",
-                    "price": "{:.8f}".format(float(take_profit_price)).rstrip('0').rstrip('.'),
+                    "price": clean_tp_price,
                     "quantity": formatted_quantity
                 }
             
@@ -568,12 +569,13 @@ class SimpleTradeExecutor:
                     logger.error(f"❌ Failed to place TP order with {format_attempt}: {tp_response}")
                     continue
                 
-                # Stop Loss Order (using same format that worked for TP)
+                # Stop Loss Order - Clean price formatting
+                clean_sl_price = "{:.2f}".format(float(stop_loss_price))
                 sl_params = {
                     "instrument_name": format_attempt,
                     "side": "SELL",
                     "type": "LIMIT",
-                    "price": "{:.8f}".format(float(stop_loss_price)).rstrip('0').rstrip('.'),
+                    "price": clean_sl_price,
                     "quantity": formatted_quantity
                 }
                 
@@ -872,13 +874,14 @@ class SimpleTradeExecutor:
             logger.debug(f"Executing trade DB query with params: {params}")
             
             try:
-                result = self.db.execute_query(query, params)
+                # Use execute_update for INSERT operations
+                result = self.db.execute_update(query, params)
                 
-                if result:
+                if result > 0:
                     logger.debug(f"Trade saved to database: {trade_data['symbol']} {trade_data['side']}")
-                    return 1
+                    return result
                 else:
-                    logger.error(f"Failed to save trade to database - execute_query returned: {result}")
+                    logger.error(f"Failed to save trade to database - no rows affected: {result}")
                     return None
             except Exception as e:
                 logger.error(f"Database query exception: {str(e)}")
@@ -893,6 +896,10 @@ class SimpleTradeExecutor:
     def _save_active_position_to_db(self, position_data: Dict[str, Any]) -> Optional[int]:
         """Save active position to database"""
         try:
+            # First ensure the coin exists in watched_coins table (for foreign key)
+            symbol = position_data['symbol']
+            self._ensure_coin_in_watched_coins(symbol)
+            
             query = """
                 INSERT INTO active_positions 
                 (symbol, formatted_symbol, side, entry_price, quantity, stop_loss, take_profit, 
@@ -921,13 +928,14 @@ class SimpleTradeExecutor:
             logger.debug(f"Executing active position DB query with params: {params}")
             
             try:
-                result = self.db.execute_query(query, params)
+                # Use execute_update for INSERT operations
+                result = self.db.execute_update(query, params)
                 
-                if result:
+                if result > 0:
                     logger.debug(f"Active position saved to database: {position_data['symbol']}")
-                    return 1
+                    return result
                 else:
-                    logger.error(f"Failed to save active position to database - execute_query returned: {result}")
+                    logger.error(f"Failed to save active position to database - no rows affected: {result}")
                     return None
             except Exception as e:
                 logger.error(f"Active position database query exception: {str(e)}")
@@ -938,6 +946,26 @@ class SimpleTradeExecutor:
         except Exception as e:
             logger.error(f"Error saving active position to database: {str(e)}")
             return None
+    
+    def _ensure_coin_in_watched_coins(self, symbol: str):
+        """Ensure coin exists in watched_coins table for foreign key"""
+        try:
+            # Check if coin already exists
+            check_query = "SELECT id FROM watched_coins WHERE symbol = ?"
+            result = self.db.execute_query(check_query, (symbol,))
+            
+            if not result:
+                # Add coin to watched_coins table
+                insert_query = """
+                    INSERT OR IGNORE INTO watched_coins 
+                    (symbol, formatted_symbol, is_active, created_by)
+                    VALUES (?, ?, ?, ?)
+                """
+                self.db.execute_update(insert_query, (symbol, symbol, True, 'SimpleTradeExecutor'))
+                logger.debug(f"Added {symbol} to watched_coins table")
+            
+        except Exception as e:
+            logger.error(f"Error ensuring coin in watched_coins: {str(e)}")
     
     def _save_signal_to_db(self, trade_signal: Dict[str, Any], executed: bool = False) -> Optional[int]:
         """Save signal to database"""
@@ -965,13 +993,14 @@ class SimpleTradeExecutor:
             logger.debug(f"Executing signal DB query with params: {params}")
             
             try:
-                result = self.db.execute_query(query, params)
+                # Use execute_update for INSERT operations
+                result = self.db.execute_update(query, params)
                 
-                if result:
+                if result > 0:
                     logger.debug(f"Signal saved to database: {trade_signal.get('symbol')} {trade_signal.get('action')}")
-                    return 1
+                    return result
                 else:
-                    logger.error(f"Failed to save signal to database - execute_query returned: {result}")
+                    logger.error(f"Failed to save signal to database - no rows affected: {result}")
                     return None
             except Exception as e:
                 logger.error(f"Signal database query exception: {str(e)}")
