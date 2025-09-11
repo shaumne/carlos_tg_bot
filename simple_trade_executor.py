@@ -523,9 +523,30 @@ class SimpleTradeExecutor:
             tp_order_id = None
             sl_order_id = None
             
+            # Get current market price for validation
+            current_market_price = self.get_current_price(original_symbol)
+            if not current_market_price:
+                logger.error(f"Cannot get current price for {original_symbol}, skipping TP/SL orders")
+                return None, None
+            
+            # Validate TP/SL prices against market price (min 0.5% difference)
+            min_tp_price = current_market_price * 1.005  # At least 0.5% above current
+            max_sl_price = current_market_price * 0.995  # At most 0.5% below current
+            
+            # Adjust TP if too close
+            if take_profit_price < min_tp_price:
+                take_profit_price = min_tp_price
+                logger.warning(f"Adjusted TP price to minimum allowed: {take_profit_price}")
+            
+            # Adjust SL if too close  
+            if stop_loss_price > max_sl_price:
+                stop_loss_price = max_sl_price
+                logger.warning(f"Adjusted SL price to maximum allowed: {stop_loss_price}")
+            
             # Try each format for TP/SL orders
             for format_attempt in possible_formats:
                 logger.info(f"Trying TP/SL with format: {format_attempt}")
+                logger.info(f"Current price: {current_market_price}, TP: {take_profit_price}, SL: {stop_loss_price}")
                 
                 # Take Profit Order
                 tp_params = {
@@ -835,26 +856,34 @@ class SimpleTradeExecutor:
                 notes_parts.append(f"SL: {stop_loss}")
             enhanced_notes = " | ".join(notes_parts)
             
-            result = self.db.execute_query(
-                query, 
-                (
-                    trade_data['symbol'],
-                    trade_data['symbol'],  # formatted_symbol same as symbol
-                    trade_data['side'],    # action
-                    actual_price,          # Use actual execution price
-                    actual_quantity,       # Use actual executed quantity
-                    order_id,              # Order ID from exchange
-                    trade_data['status'],  # execution_type
-                    enhanced_notes,        # Enhanced notes with TP/SL
-                    trade_data['created_at']  # timestamp
-                )
+            # Debug log the query parameters
+            params = (
+                trade_data['symbol'],
+                trade_data['symbol'],  # formatted_symbol same as symbol
+                trade_data['side'],    # action
+                actual_price,          # Use actual execution price
+                actual_quantity,       # Use actual executed quantity
+                order_id,              # Order ID from exchange
+                trade_data['status'],  # execution_type
+                enhanced_notes,        # Enhanced notes with TP/SL
+                trade_data['created_at']  # timestamp
             )
             
-            if result:
-                logger.debug(f"Trade saved to database: {trade_data['symbol']} {trade_data['side']}")
-                return 1
-            else:
-                logger.error(f"Failed to save trade to database")
+            logger.debug(f"Executing trade DB query with params: {params}")
+            
+            try:
+                result = self.db.execute_query(query, params)
+                
+                if result:
+                    logger.debug(f"Trade saved to database: {trade_data['symbol']} {trade_data['side']}")
+                    return 1
+                else:
+                    logger.error(f"Failed to save trade to database - execute_query returned: {result}")
+                    return None
+            except Exception as e:
+                logger.error(f"Database query exception: {str(e)}")
+                logger.error(f"Query: {query}")
+                logger.error(f"Params: {params}")
                 return None
                 
         except Exception as e:
@@ -873,29 +902,37 @@ class SimpleTradeExecutor:
             
             notes = f"Created by SimpleTradeExecutor | Status: {position_data['status']}"
             
-            result = self.db.execute_query(
-                query, 
-                (
-                    position_data['symbol'],
-                    position_data['symbol'],  # formatted_symbol same as symbol
-                    position_data['action'],   # side
-                    position_data['entry_price'],
-                    position_data['quantity'],
-                    position_data.get('stop_loss', 0),
-                    position_data.get('take_profit', 0),
-                    position_data.get('main_order_id', ''),
-                    position_data.get('tp_order_id', ''),
-                    position_data.get('sl_order_id', ''),
-                    position_data['status'],
-                    notes
-                )
+            # Debug log the query parameters
+            params = (
+                position_data['symbol'],
+                position_data['symbol'],  # formatted_symbol same as symbol
+                position_data['action'],   # side
+                position_data['entry_price'],
+                position_data['quantity'],
+                position_data.get('stop_loss', 0),
+                position_data.get('take_profit', 0),
+                position_data.get('main_order_id', ''),
+                position_data.get('tp_order_id', ''),
+                position_data.get('sl_order_id', ''),
+                position_data['status'],
+                notes
             )
             
-            if result:
-                logger.debug(f"Active position saved to database: {position_data['symbol']}")
-                return 1
-            else:
-                logger.error(f"Failed to save active position to database")
+            logger.debug(f"Executing active position DB query with params: {params}")
+            
+            try:
+                result = self.db.execute_query(query, params)
+                
+                if result:
+                    logger.debug(f"Active position saved to database: {position_data['symbol']}")
+                    return 1
+                else:
+                    logger.error(f"Failed to save active position to database - execute_query returned: {result}")
+                    return None
+            except Exception as e:
+                logger.error(f"Active position database query exception: {str(e)}")
+                logger.error(f"Query: {query}")
+                logger.error(f"Params: {params}")
                 return None
                 
         except Exception as e:
@@ -913,25 +950,33 @@ class SimpleTradeExecutor:
             
             notes = f"Reasoning: {trade_signal.get('reasoning', '')}"
             
-            result = self.db.execute_query(
-                query, 
-                (
-                    trade_signal.get('symbol'),
-                    trade_signal.get('symbol'),  # formatted_symbol same as symbol
-                    trade_signal.get('action'),   # signal_type
-                    trade_signal.get('price', 0),
-                    trade_signal.get('confidence', 0),
-                    executed,
-                    notes,
-                    datetime.now().isoformat()
-                )
+            # Debug log the query parameters
+            params = (
+                trade_signal.get('symbol'),
+                trade_signal.get('symbol'),  # formatted_symbol same as symbol
+                trade_signal.get('action'),   # signal_type
+                trade_signal.get('price', 0),
+                trade_signal.get('confidence', 0),
+                executed,
+                notes,
+                datetime.now().isoformat()
             )
             
-            if result:
-                logger.debug(f"Signal saved to database: {trade_signal.get('symbol')} {trade_signal.get('action')}")
-                return 1
-            else:
-                logger.error(f"Failed to save signal to database")
+            logger.debug(f"Executing signal DB query with params: {params}")
+            
+            try:
+                result = self.db.execute_query(query, params)
+                
+                if result:
+                    logger.debug(f"Signal saved to database: {trade_signal.get('symbol')} {trade_signal.get('action')}")
+                    return 1
+                else:
+                    logger.error(f"Failed to save signal to database - execute_query returned: {result}")
+                    return None
+            except Exception as e:
+                logger.error(f"Signal database query exception: {str(e)}")
+                logger.error(f"Query: {query}")
+                logger.error(f"Params: {params}")
                 return None
                 
         except Exception as e:

@@ -928,27 +928,25 @@ class CryptoExchangeAPI:
             validated_limit = max(1, min(limit, 200))
             logger.info(f"get_order_history called with limit={limit}, validated_limit={validated_limit}")
             
+            # Try without limit first (some Crypto.com endpoints don't support limit)
             params = {
                 "start_time": seven_days_ago,
-                "end_time": current_time,
-                "limit": validated_limit
+                "end_time": current_time
             }
             
             if instrument_name:
                 params["instrument_name"] = instrument_name
             
+            logger.info(f"Trying get-order-history without limit parameter first")
             response = self.send_request("private/get-order-history", params)
             
-            # If limit error, try without limit parameter
+            # If still getting limit error, try with minimal parameters  
             if response.get("code") == 40003:  # Invalid limit error
-                logger.warning(f"Invalid limit error, retrying without limit parameter")
-                params_no_limit = {
-                    "start_time": seven_days_ago,
-                    "end_time": current_time
-                }
+                logger.warning(f"Limit error even without limit, trying minimal parameters")
+                minimal_params = {}
                 if instrument_name:
-                    params_no_limit["instrument_name"] = instrument_name
-                response = self.send_request("private/get-order-history", params_no_limit)
+                    minimal_params["instrument_name"] = instrument_name
+                response = self.send_request("private/get-order-history", minimal_params)
             
             if response.get("code") == 0:
                 orders_data = response.get("result", {}).get("data", [])
@@ -990,27 +988,25 @@ class CryptoExchangeAPI:
             validated_limit = max(1, min(limit, 200))
             logger.info(f"get_trade_history called with limit={limit}, validated_limit={validated_limit}")
             
+            # Try without limit first (some Crypto.com endpoints don't support limit)
             params = {
                 "start_time": seven_days_ago,
-                "end_time": current_time,
-                "limit": validated_limit
+                "end_time": current_time
             }
             
             if instrument_name:
                 params["instrument_name"] = instrument_name
             
+            logger.info(f"Trying get-trades without limit parameter first")
             response = self.send_request("private/get-trades", params)
             
-            # If limit error, try without limit parameter
+            # If still getting limit error, try with minimal parameters
             if response.get("code") == 40003:  # Invalid limit error
-                logger.warning(f"Invalid limit error, retrying without limit parameter")
-                params_no_limit = {
-                    "start_time": seven_days_ago,
-                    "end_time": current_time
-                }
+                logger.warning(f"Limit error even without limit, trying minimal parameters")
+                minimal_params = {}
                 if instrument_name:
-                    params_no_limit["instrument_name"] = instrument_name
-                response = self.send_request("private/get-trades", params_no_limit)
+                    minimal_params["instrument_name"] = instrument_name
+                response = self.send_request("private/get-trades", minimal_params)
             
             if response.get("code") == 0:
                 trades_data = response.get("result", {}).get("data", [])
