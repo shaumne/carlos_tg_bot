@@ -531,17 +531,25 @@ class SimpleTradeExecutor:
             
             # Validate TP/SL prices against market price (min 0.5% difference)
             min_tp_price = current_market_price * 1.005  # At least 0.5% above current
+            max_tp_price = current_market_price * 1.05   # At most 5% above current
+            min_sl_price = current_market_price * 0.95   # At least 5% below current  
             max_sl_price = current_market_price * 0.995  # At most 0.5% below current
             
-            # Adjust TP if too close
+            # Adjust TP if too close or too far
             if take_profit_price < min_tp_price:
                 take_profit_price = min_tp_price
                 logger.warning(f"Adjusted TP price to minimum allowed: {take_profit_price}")
+            elif take_profit_price > max_tp_price:
+                take_profit_price = max_tp_price
+                logger.warning(f"Adjusted TP price to maximum allowed range: {take_profit_price}")
             
-            # Adjust SL if too close  
+            # Adjust SL if too close or too far
             if stop_loss_price > max_sl_price:
                 stop_loss_price = max_sl_price
                 logger.warning(f"Adjusted SL price to maximum allowed: {stop_loss_price}")
+            elif stop_loss_price < min_sl_price:
+                stop_loss_price = min_sl_price
+                logger.warning(f"Adjusted SL price to minimum allowed range: {stop_loss_price}")
             
             # Try each format for TP/SL orders
             for format_attempt in possible_formats:

@@ -791,6 +791,14 @@ To generate signals:
             trade_history = self.exchange_api.get_trade_history(limit=10)
             order_history = self.exchange_api.get_order_history(limit=5)
             
+            # Type safety: ensure we got proper list objects
+            if not isinstance(trade_history, list):
+                logger.error(f"Invalid trade_history type: {type(trade_history)}")
+                trade_history = []
+            if not isinstance(order_history, list):
+                logger.error(f"Invalid order_history type: {type(order_history)}")
+                order_history = []
+            
             if not trade_history and not order_history:
                 history_text = """
 📜 <b>Trading History</b>
@@ -802,17 +810,18 @@ History will appear here after you place trades.
             else:
                 history_text = f"📜 <b>Recent Trading Activity</b>\n\n"
                 
-                # Show recent trades
+                # Show recent trades with safe attribute access
                 if trade_history:
                     history_text += f"💱 <b>Recent Trades</b> ({len(trade_history)})\n"
                     
                     for trade in trade_history[:5]:  # Show last 5
-                        symbol = trade.instrument_name
-                        action = trade.side
-                        price = trade.price
-                        quantity = trade.quantity
-                        fee = trade.fee
-                        timestamp = trade.timestamp if hasattr(trade, 'timestamp') else 'N/A'
+                        # Safe attribute access with fallbacks
+                        symbol = getattr(trade, 'instrument_name', 'UNKNOWN')
+                        action = getattr(trade, 'side', 'UNKNOWN')
+                        price = getattr(trade, 'price', 0)
+                        quantity = getattr(trade, 'quantity', 0)
+                        fee = getattr(trade, 'fee', 0)
+                        timestamp = getattr(trade, 'timestamp', 'N/A')
                         
                         action_emoji = "🟢" if action == "BUY" else "🔴"
                         
@@ -833,12 +842,13 @@ History will appear here after you place trades.
                     history_text += f"📝 <b>Recent Orders</b> ({len(order_history)})\n"
                     
                     for order in order_history[:3]:  # Show last 3
-                        symbol = order.instrument_name
-                        side = order.side
-                        status = order.status
-                        price = order.price
-                        quantity = order.quantity
-                        filled_qty = order.filled_quantity
+                        # Safe attribute access with fallbacks
+                        symbol = getattr(order, 'instrument_name', 'UNKNOWN')
+                        side = getattr(order, 'side', 'UNKNOWN')
+                        status = getattr(order, 'status', 'UNKNOWN')
+                        price = getattr(order, 'price', 0)
+                        quantity = getattr(order, 'quantity', 0)
+                        filled_qty = getattr(order, 'filled_quantity', 0)
                         
                         status_emoji = {
                             "FILLED": "✅",
@@ -1875,6 +1885,14 @@ The background analysis system is not running."""
             # Get more comprehensive history data (conservative limits)
             trade_history = self.exchange_api.get_trade_history(limit=20)
             order_history = self.exchange_api.get_order_history(limit=15)
+            
+            # Type safety: ensure we got proper list objects
+            if not isinstance(trade_history, list):
+                logger.error(f"Invalid trade_history type in detailed_history: {type(trade_history)}")
+                trade_history = []
+            if not isinstance(order_history, list):
+                logger.error(f"Invalid order_history type in detailed_history: {type(order_history)}")
+                order_history = []
             
             if not trade_history and not order_history:
                 history_text = """
