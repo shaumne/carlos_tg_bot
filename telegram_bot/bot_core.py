@@ -748,7 +748,7 @@ To generate signals:
 {emoji} <b>{symbol}</b> - {signal_type}
 • Price: ${price:.6f}
 • Confidence: {conf_bars} ({confidence:.0%})
-• Time: {timestamp[:16]}
+• Time: {str(timestamp)[:16] if timestamp else 'N/A'}
 
                     """
                 
@@ -788,15 +788,20 @@ To generate signals:
         
         try:
             # Get trade history directly from exchange (use conservative limits)
+            logger.debug("Getting trade history from exchange...")
             trade_history = self.exchange_api.get_trade_history(limit=10)
+            logger.debug(f"Trade history result: {type(trade_history)} - {trade_history}")
+            
+            logger.debug("Getting order history from exchange...")
             order_history = self.exchange_api.get_order_history(limit=5)
+            logger.debug(f"Order history result: {type(order_history)} - {order_history}")
             
             # Type safety: ensure we got proper list objects
             if not isinstance(trade_history, list):
-                logger.error(f"Invalid trade_history type: {type(trade_history)}")
+                logger.error(f"Invalid trade_history type: {type(trade_history)} - Content: {trade_history}")
                 trade_history = []
             if not isinstance(order_history, list):
-                logger.error(f"Invalid order_history type: {type(order_history)}")
+                logger.error(f"Invalid order_history type: {type(order_history)} - Content: {order_history}")
                 order_history = []
             
             if not trade_history and not order_history:
@@ -814,25 +819,36 @@ History will appear here after you place trades.
                 if trade_history:
                     history_text += f"💱 <b>Recent Trades</b> ({len(trade_history)})\n"
                     
-                    for trade in trade_history[:5]:  # Show last 5
-                        # Safe attribute access with fallbacks
-                        symbol = getattr(trade, 'instrument_name', 'UNKNOWN')
-                        action = getattr(trade, 'side', 'UNKNOWN')
-                        price = getattr(trade, 'price', 0)
-                        quantity = getattr(trade, 'quantity', 0)
-                        fee = getattr(trade, 'fee', 0)
-                        timestamp = getattr(trade, 'timestamp', 'N/A')
-                        
-                        action_emoji = "🟢" if action == "BUY" else "🔴"
-                        
-                        history_text += f"""
+                    for i, trade in enumerate(trade_history[:5]):  # Show last 5
+                        try:
+                            # Safe attribute access with fallbacks
+                            symbol = getattr(trade, 'instrument_name', 'UNKNOWN')
+                            action = getattr(trade, 'side', 'UNKNOWN')
+                            price = getattr(trade, 'price', 0)
+                            quantity = getattr(trade, 'quantity', 0)
+                            fee = getattr(trade, 'fee', 0)
+                            timestamp = getattr(trade, 'timestamp', 'N/A')
+                            
+                            # Safe timestamp handling - convert to string and slice
+                            if timestamp != 'N/A':
+                                timestamp_str = str(timestamp)
+                                display_time = timestamp_str[:16] if len(timestamp_str) > 16 else timestamp_str
+                            else:
+                                display_time = 'N/A'
+                            
+                            action_emoji = "🟢" if action == "BUY" else "🔴"
+                            
+                            history_text += f"""
 {action_emoji} <b>{symbol}</b> - {action}
 • Price: ${price:.6f}
 • Quantity: {quantity:.6f}
 • Fee: ${fee:.4f}
-• Time: {timestamp[:16] if timestamp != 'N/A' else 'N/A'}
+• Time: {display_time}
 
                         """
+                        except Exception as trade_error:
+                            logger.error(f"Error processing trade {i}: {trade_error}")
+                            history_text += f"❌ Error processing trade {i+1}\n"
                     
                     if len(trade_history) > 5:
                         history_text += f"... and {len(trade_history) - 5} more trades\n\n"
@@ -841,26 +857,27 @@ History will appear here after you place trades.
                 if order_history:
                     history_text += f"📝 <b>Recent Orders</b> ({len(order_history)})\n"
                     
-                    for order in order_history[:3]:  # Show last 3
-                        # Safe attribute access with fallbacks
-                        symbol = getattr(order, 'instrument_name', 'UNKNOWN')
-                        side = getattr(order, 'side', 'UNKNOWN')
-                        status = getattr(order, 'status', 'UNKNOWN')
-                        price = getattr(order, 'price', 0)
-                        quantity = getattr(order, 'quantity', 0)
-                        filled_qty = getattr(order, 'filled_quantity', 0)
-                        
-                        status_emoji = {
-                            "FILLED": "✅",
-                            "ACTIVE": "🟡", 
-                            "CANCELLED": "❌",
-                            "REJECTED": "🚫",
-                            "EXPIRED": "⏰"
-                        }.get(status, "❓")
-                        
-                        side_emoji = "🟢" if side == "BUY" else "🔴"
-                        
-                        history_text += f"""
+                    for j, order in enumerate(order_history[:3]):  # Show last 3
+                        try:
+                            # Safe attribute access with fallbacks
+                            symbol = getattr(order, 'instrument_name', 'UNKNOWN')
+                            side = getattr(order, 'side', 'UNKNOWN')
+                            status = getattr(order, 'status', 'UNKNOWN')
+                            price = getattr(order, 'price', 0)
+                            quantity = getattr(order, 'quantity', 0)
+                            filled_qty = getattr(order, 'filled_quantity', 0)
+                            
+                            status_emoji = {
+                                "FILLED": "✅",
+                                "ACTIVE": "🟡", 
+                                "CANCELLED": "❌",
+                                "REJECTED": "🚫",
+                                "EXPIRED": "⏰"
+                            }.get(status, "❓")
+                            
+                            side_emoji = "🟢" if side == "BUY" else "🔴"
+                            
+                            history_text += f"""
 {side_emoji} <b>{symbol}</b> - {side} {status_emoji}
 • Status: {status}
 • Price: ${price:.6f}
@@ -868,6 +885,9 @@ History will appear here after you place trades.
 • Filled: {filled_qty:.6f}
 
                         """
+                        except Exception as order_error:
+                            logger.error(f"Error processing order {j}: {order_error}")
+                            history_text += f"❌ Error processing order {j+1}\n"
             
             # History actions
             keyboard = [
@@ -1908,7 +1928,11 @@ History will appear here after you place trades.
                 # Statistics
                 total_trades = len(trade_history)
                 total_orders = len(order_history)
-                total_fees = sum(trade.fee for trade in trade_history)
+                # Safe total fees calculation
+                try:
+                    total_fees = sum(float(getattr(trade, 'fee', 0)) for trade in trade_history)
+                except (ValueError, TypeError):
+                    total_fees = 0
                 
                 history_text += f"""
 📊 <b>Statistics</b>
@@ -1923,25 +1947,37 @@ History will appear here after you place trades.
                     history_text += f"💱 <b>All Trades</b> (Last {len(trade_history)})\n"
                     
                     for i, trade in enumerate(trade_history[:10], 1):  # Show last 10
-                        symbol = trade.instrument_name
-                        action = trade.side
-                        price = trade.price
-                        quantity = trade.quantity
-                        fee = trade.fee
-                        trade_id = trade.trade_id[:8] if trade.trade_id else 'N/A'
-                        timestamp = trade.timestamp if hasattr(trade, 'timestamp') else 'N/A'
-                        
-                        action_emoji = "🟢" if action == "BUY" else "🔴"
-                        
-                        history_text += f"""
+                        try:
+                            symbol = getattr(trade, 'instrument_name', 'UNKNOWN')
+                            action = getattr(trade, 'side', 'UNKNOWN')
+                            price = getattr(trade, 'price', 0)
+                            quantity = getattr(trade, 'quantity', 0)
+                            fee = getattr(trade, 'fee', 0)
+                            
+                            # Safe trade_id handling
+                            raw_trade_id = getattr(trade, 'trade_id', 'N/A')
+                            if raw_trade_id != 'N/A':
+                                trade_id = str(raw_trade_id)[:8]
+                            else:
+                                trade_id = 'N/A'
+                            
+                            # Safe timestamp handling  
+                            timestamp = getattr(trade, 'timestamp', 'N/A')
+                            
+                            action_emoji = "🟢" if action == "BUY" else "🔴"
+                            
+                            history_text += f"""
 {i}. {action_emoji} <b>{symbol}</b> - {action}
    • Price: ${price:.6f}
    • Qty: {quantity:.6f}
    • Fee: ${fee:.4f}
    • ID: {trade_id}
-   • Time: {timestamp[:16] if timestamp != 'N/A' else 'N/A'}
+   • Time: {str(timestamp)[:16] if timestamp != 'N/A' else 'N/A'}
 
                         """
+                        except Exception as detailed_trade_error:
+                            logger.error(f"Error processing detailed trade {i}: {detailed_trade_error}")
+                            history_text += f"❌ Error processing trade {i}\n"
                     
                     if len(trade_history) > 10:
                         history_text += f"... and {len(trade_history) - 10} more trades\n\n"
@@ -1950,8 +1986,12 @@ History will appear here after you place trades.
                 if order_history:
                     status_counts = {}
                     for order in order_history:
-                        status = order.status
-                        status_counts[status] = status_counts.get(status, 0) + 1
+                        try:
+                            status = getattr(order, 'status', 'UNKNOWN')
+                            status_counts[status] = status_counts.get(status, 0) + 1
+                        except Exception as status_error:
+                            logger.error(f"Error processing order status: {status_error}")
+                            status_counts['ERROR'] = status_counts.get('ERROR', 0) + 1
                     
                     history_text += f"📝 <b>Order Status Breakdown</b>\n"
                     for status, count in status_counts.items():
