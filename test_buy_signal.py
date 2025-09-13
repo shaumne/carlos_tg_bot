@@ -86,8 +86,8 @@ Bu test kod:
             try:
                 # Check if telegram configuration exists first
                 if hasattr(config, 'telegram') and hasattr(config.telegram, 'bot_token'):
-                    from telegram_bot.bot_core import TelegramBot
-                    telegram_bot = TelegramBot(config, db)
+                    from telegram_bot.bot_core import TelegramTradingBot
+                    telegram_bot = TelegramTradingBot(config, db)
                     print(f"   📞 Telegram bot: ✅ (Notifications will be sent)")
                 else:
                     print(f"   📞 Telegram bot: ❌ (No bot token configured)")

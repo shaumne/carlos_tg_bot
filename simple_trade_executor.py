@@ -343,13 +343,15 @@ class SimpleTradeExecutor:
             
             logger.info(f"Creating market sell order: SELL {quantity} (trying {len(possible_formats)} formats)")
             
-            # Format quantity based on coin requirements
+            # Format quantity based on coin requirements (same as TP/SL formatting)
             if base_currency in ["SUI", "BONK", "SHIB", "DOGE", "PEPE"]:
-                formatted_quantity = int(float(quantity))
-            elif base_currency in ["BTC", "ETH", "SOL"]:
+                formatted_quantity = str(int(float(quantity)))
+            elif base_currency in ["SOL"]:
+                formatted_quantity = "{:.3f}".format(float(quantity))
+            elif base_currency in ["BTC", "ETH"]:
                 formatted_quantity = "{:.6f}".format(float(quantity)).rstrip('0').rstrip('.')
             else:
-                formatted_quantity = "{:.2f}".format(float(quantity))
+                formatted_quantity = "{:.4f}".format(float(quantity)).rstrip('0').rstrip('.')
             
             # Try each format until one works
             for format_attempt in possible_formats:
@@ -518,10 +520,18 @@ class SimpleTradeExecutor:
             # Format quantity with buffer for SL orders (reduce by 0.1% to avoid balance issues)
             available_quantity = float(quantity) * 0.999  # 0.1% buffer for fees/rounding
             
+            # Exchange-specific quantity formatting
             if base_currency in ["SUI", "BONK", "SHIB", "DOGE", "PEPE"]:
                 formatted_quantity = str(int(available_quantity))
-            else:
+            elif base_currency in ["SOL"]:
+                # SOL requires specific decimal precision (3 decimal places)
+                formatted_quantity = "{:.3f}".format(available_quantity)
+            elif base_currency in ["BTC", "ETH"]:
+                # BTC/ETH require higher precision
                 formatted_quantity = "{:.6f}".format(available_quantity).rstrip('0').rstrip('.')
+            else:
+                # Default for other coins
+                formatted_quantity = "{:.4f}".format(available_quantity).rstrip('0').rstrip('.')
             
             logger.info(f"TP/SL orders: Original quantity: {quantity}, Adjusted quantity: {formatted_quantity}")
             
@@ -1404,8 +1414,8 @@ def execute_trade(trade_signal: Dict[str, Any]) -> bool:
         # Try to get Telegram bot instance for notifications
         telegram_bot = None
         try:
-            from telegram_bot.bot_core import TelegramBot
-            telegram_bot = TelegramBot(config, db)
+            from telegram_bot.bot_core import TelegramTradingBot
+            telegram_bot = TelegramTradingBot(config, db)
             logger.info("✅ Telegram bot initialized for notifications")
         except ImportError as e:
             logger.debug(f"Telegram bot module not available: {str(e)}")
