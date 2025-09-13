@@ -88,7 +88,18 @@ Bu test kod:
                 if hasattr(config, 'telegram') and hasattr(config.telegram, 'bot_token'):
                     from telegram_bot.bot_core import TelegramTradingBot
                     telegram_bot = TelegramTradingBot(config, db)
-                    print(f"   📞 Telegram bot: ✅ (Notifications will be sent)")
+                    
+                    # Initialize telegram bot asynchronously
+                    import asyncio
+                    try:
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        loop.run_until_complete(telegram_bot.initialize())
+                        loop.close()
+                        print(f"   📞 Telegram bot: ✅ (Fully initialized and ready)")
+                    except Exception as init_error:
+                        print(f"   📞 Telegram bot: ❌ (Init failed: {str(init_error)})")
+                        telegram_bot = None
                 else:
                     print(f"   📞 Telegram bot: ❌ (No bot token configured)")
                     telegram_bot = None

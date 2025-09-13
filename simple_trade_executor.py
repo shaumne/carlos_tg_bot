@@ -348,7 +348,9 @@ class SimpleTradeExecutor:
                 formatted_quantity = str(int(float(quantity)))
             elif base_currency in ["SOL"]:
                 formatted_quantity = "{:.3f}".format(float(quantity))
-            elif base_currency in ["BTC", "ETH"]:
+            elif base_currency in ["ETH"]:
+                formatted_quantity = "{:.4f}".format(float(quantity)).rstrip('0').rstrip('.')
+            elif base_currency in ["BTC"]:
                 formatted_quantity = "{:.6f}".format(float(quantity)).rstrip('0').rstrip('.')
             else:
                 formatted_quantity = "{:.4f}".format(float(quantity)).rstrip('0').rstrip('.')
@@ -526,8 +528,11 @@ class SimpleTradeExecutor:
             elif base_currency in ["SOL"]:
                 # SOL requires specific decimal precision (3 decimal places)
                 formatted_quantity = "{:.3f}".format(available_quantity)
-            elif base_currency in ["BTC", "ETH"]:
-                # BTC/ETH require higher precision
+            elif base_currency in ["ETH"]:
+                # ETH requires lower precision (4 decimal places max)
+                formatted_quantity = "{:.4f}".format(available_quantity).rstrip('0').rstrip('.')
+            elif base_currency in ["BTC"]:
+                # BTC requires higher precision (6+ decimal places)
                 formatted_quantity = "{:.6f}".format(available_quantity).rstrip('0').rstrip('.')
             else:
                 # Default for other coins
@@ -911,6 +916,11 @@ class SimpleTradeExecutor:
     async def _send_telegram_message(self, message: str):
         """Send message to Telegram chats"""
         try:
+            # Safety check: Ensure telegram bot is properly initialized
+            if not self.telegram_bot or not self.telegram_bot.application or not self.telegram_bot.application.bot:
+                logger.warning("Telegram bot not properly initialized, cannot send message")
+                return
+                
             if hasattr(self.config.telegram, 'signal_chat_ids'):
                 signal_chat_ids = self.config.telegram.signal_chat_ids
                 for chat_id in signal_chat_ids:
@@ -920,6 +930,7 @@ class SimpleTradeExecutor:
                             text=message,
                             parse_mode='HTML'
                         )
+                        logger.info(f"✅ Message sent to Telegram chat {chat_id}")
                     except Exception as e:
                         logger.error(f"Failed to send message to chat {chat_id}: {str(e)}")
             else:
@@ -1416,7 +1427,18 @@ def execute_trade(trade_signal: Dict[str, Any]) -> bool:
         try:
             from telegram_bot.bot_core import TelegramTradingBot
             telegram_bot = TelegramTradingBot(config, db)
-            logger.info("✅ Telegram bot initialized for notifications")
+            
+            # Initialize telegram bot asynchronously
+            import asyncio
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(telegram_bot.initialize())
+                loop.close()
+                logger.info("✅ Telegram bot initialized and ready for notifications")
+            except Exception as init_error:
+                logger.warning(f"Telegram bot initialization failed: {str(init_error)}")
+                telegram_bot = None
         except ImportError as e:
             logger.debug(f"Telegram bot module not available: {str(e)}")
         except Exception as e:
