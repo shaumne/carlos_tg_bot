@@ -703,11 +703,24 @@ class SimpleTradeExecutor:
             
             logger.info(f"✅ {action} order placed: {order_id}")
             
-            # Wait for order to be filled
+            # Wait for order to be filled with detailed logging
+            logger.info(f"📋 BUY ORDER CONFIRMATION:")
+            logger.info(f"   🆔 Order ID: {order_id}")
+            logger.info(f"   💱 Symbol: {symbol}")
+            logger.info(f"   💰 Amount: ${amount}")
+            logger.info(f"   ⏳ Status: WAITING FOR FILL...")
+            
             filled = self._wait_for_order_fill(order_id, symbol)
+            
             if not filled:
-                logger.error(f"❌ Order {order_id} was not filled")
+                logger.error(f"❌ BUY ORDER FAILED:")
+                logger.error(f"   🆔 Order ID: {order_id}")
+                logger.error(f"   ❌ Status: NOT FILLED")
                 return False
+            else:
+                logger.info(f"✅ BUY ORDER SUCCESS:")
+                logger.info(f"   🆔 Order ID: {order_id}")
+                logger.info(f"   ✅ Status: FILLED")
             
             # Get actual executed details
             order_details = self._get_order_details(order_id)
@@ -721,9 +734,17 @@ class SimpleTradeExecutor:
             
             # Place TP/SL orders only for BUY trades
             if action == "BUY" and actual_quantity > 0:
+                logger.info(f"🎯 Placing TP/SL orders for {symbol} position...")
                 tp_order_id, sl_order_id = self.place_tp_sl_orders(
                     symbol, actual_quantity, take_profit_price, stop_loss_price
                 )
+                
+                # Log TP/SL order results with confirmation
+                tp_status = "✅ CREATED" if tp_order_id else "❌ FAILED"
+                sl_status = "✅ CREATED" if sl_order_id else "❌ FAILED"
+                logger.info(f"📋 TP/SL ORDER RESULTS:")
+                logger.info(f"   🟢 Take Profit Order: {tp_status} (ID: {tp_order_id or 'None'})")
+                logger.info(f"   🔴 Stop Loss Order: {sl_status} (ID: {sl_order_id or 'None'})")
                 
                 # Add to active positions for monitoring
                 position_data = {
@@ -744,7 +765,11 @@ class SimpleTradeExecutor:
                 logger.info(f"📊 Position added to monitoring: {symbol}")
                 
                 # Save position to active_positions table in database
-                self._save_active_position_to_db(position_data)
+                position_saved = self._save_active_position_to_db(position_data)
+                if position_saved:
+                    logger.info(f"💾 Position saved to database successfully")
+                else:
+                    logger.error(f"❌ Failed to save position to database")
                 
                 # Start TP/SL monitoring if not already running
                 self._start_tp_sl_monitoring()
@@ -939,11 +964,15 @@ class SimpleTradeExecutor:
                 # Use execute_update for INSERT operations
                 result = self.db.execute_update(query, params)
                 
-                if result > 0:
-                    logger.debug(f"Active position saved to database: {position_data['symbol']}")
+                logger.info(f"Database insert result for active position: {result}")
+                
+                if result and result > 0:
+                    logger.info(f"✅ Active position saved to database: {position_data['symbol']} (rows affected: {result})")
                     return result
                 else:
-                    logger.error(f"Failed to save active position to database - no rows affected: {result}")
+                    logger.error(f"❌ Failed to save active position to database - execute_update returned: {result}")
+                    logger.error(f"Query: {query}")
+                    logger.error(f"Params: {params}")
                     return None
             except Exception as e:
                 logger.error(f"Active position database query exception: {str(e)}")
@@ -1034,7 +1063,10 @@ class SimpleTradeExecutor:
             self.monitoring_active = True
             self.monitoring_thread = threading.Thread(target=self._tp_sl_monitor_loop, daemon=True)
             self.monitoring_thread.start()
-            logger.info("🎯 TP/SL monitoring started")
+            logger.info(f"🔄 TP/SL monitoring loop started")
+            logger.info(f"🎯 TP/SL monitoring started")
+        else:
+            logger.info(f"🎯 TP/SL monitoring already active")
     
     def _stop_tp_sl_monitoring(self):
         """Stop TP/SL monitoring"""

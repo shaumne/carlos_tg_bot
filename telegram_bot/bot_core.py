@@ -1574,7 +1574,7 @@ The background analysis system is not running."""
                 
         except Exception as e:
             logger.error(f"Error adding coin {symbol}: {str(e)}")
-            await self._send_response(update_or_query, f"❌ Hata: {str(e)}")
+            await self._send_response(update_or_query, f"❌ Error: {str(e)}")
     
     async def _remove_coin_from_watchlist(self, update_or_query, symbol: str):
         """Remove coin from watchlist utility"""
@@ -1610,7 +1610,7 @@ The background analysis system is not running."""
                 
         except Exception as e:
             logger.error(f"Error removing coin {symbol}: {str(e)}")
-            await self._send_response(update_or_query, f"❌ Hata: {str(e)}")
+            await self._send_response(update_or_query, f"❌ Error: {str(e)}")
     
     async def _analyze_symbol(self, update_or_query, symbol: str):
         """Analyze symbol utility"""

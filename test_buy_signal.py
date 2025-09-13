@@ -120,21 +120,73 @@ Bu test kod:
             usd_balance = 0
             sufficient = False
         
-        # 4. TEST SİNYALİ OLUŞTUR
+        # 4. TEST SİNYALİ OLUŞTUR - RANDOM COIN SEÇİMİ
         print(f"\n{'='*60}")
-        print(f"📡 4. TEST SİNYALİ OLUŞTURULUYOR")
+        print(f"📡 4. TEST SİNYALİ OLUŞTURULUYOR - RANDOM COIN")
         print(f"{'='*60}")
         
+        # Database'den watched_coins listesini al
+        try:
+            watched_coins_query = "SELECT symbol, formatted_symbol FROM watched_coins WHERE active = 1"
+            watched_coins = db.execute_query(watched_coins_query)
+            
+            if not watched_coins:
+                # Fallback: Default coin ekle
+                print(f"⚠️ Watchlist boş, default coin ekleniyor...")
+                default_coins = [
+                    ('SOL_USDT', 'SOL_USDT'),
+                    ('BTC_USDT', 'BTC_USDT'), 
+                    ('ETH_USDT', 'ETH_USDT'),
+                    ('ADA_USDT', 'ADA_USDT')
+                ]
+                
+                for symbol, formatted in default_coins:
+                    try:
+                        db.execute_update(
+                            "INSERT OR IGNORE INTO watched_coins (symbol, formatted_symbol, active, notes) VALUES (?, ?, ?, ?)",
+                            (symbol, formatted, True, "Added by test script")
+                        )
+                    except:
+                        pass
+                
+                # Tekrar dene
+                watched_coins = db.execute_query(watched_coins_query)
+            
+            print(f"📊 Watchlist'te {len(watched_coins)} coin bulundu")
+            
+            # Random coin seç
+            import random
+            selected_coin = random.choice(watched_coins)
+            test_symbol = selected_coin[0]  # symbol column
+            
+            print(f"🎲 Random seçilen coin: {test_symbol}")
+            
+            # Get current price for the selected coin (fallback to 100 if can't get)
+            try:
+                current_price = executor.get_current_price(test_symbol)
+                if not current_price or current_price <= 0:
+                    current_price = 100.0  # Fallback price
+                print(f"💰 Mevcut fiyat: ${current_price}")
+            except:
+                current_price = 100.0
+                print(f"⚠️ Fiyat alınamadı, fallback kullanılıyor: ${current_price}")
+            
+        except Exception as e:
+            print(f"⚠️ Database'den coin seçimi başarısız: {e}")
+            test_symbol = 'SOL_USDT'  # Fallback
+            current_price = 200.0
+            print(f"🔄 Fallback coin kullanılıyor: {test_symbol}")
+        
         test_signal = {
-            'symbol': 'SOL_USDT',
+            'symbol': test_symbol,
             'action': 'BUY',
-            'price': 200.0,  # Test fiyatı
+            'price': current_price,
             'confidence': 85.0,
-            'original_symbol': 'SOL_USDT',
+            'original_symbol': test_symbol,
             'row_index': 1,
-            'take_profit': 200.0 * 1.1,  # %10 kar
-            'stop_loss': 200.0 * 0.95,   # %5 zarar
-            'reasoning': 'TEST ALIM SİNYALİ - Manuel test için oluşturuldu'
+            'take_profit': current_price * 1.1,  # %10 kar
+            'stop_loss': current_price * 0.95,   # %5 zarar
+            'reasoning': f'TEST ALIM SİNYALİ - {test_symbol} için random test'
         }
         
         print(f"🎯 Test Sinyali Hazırlandı:")
@@ -158,7 +210,43 @@ Bu test kod:
         print(f"\n📊 SONUÇ:")
         if result:
             print(f"   ✅ Trade başarılı!")
-            print(f"   💰 SOL satın alındı (veya alınmaya çalışıldı)")
+            print(f"   💰 {test_signal['symbol']} satın alındı")
+            
+            # Check active positions to see TP/SL status
+            try:
+                active_positions = executor.get_active_positions()
+                if test_signal['symbol'] in active_positions:
+                    position = active_positions[test_signal['symbol']]
+                    print(f"   📊 POZİSYON DETAYLARI:")
+                    print(f"      💱 Symbol: {position.get('symbol', 'N/A')}")
+                    print(f"      💰 Entry Price: ${position.get('entry_price', 'N/A')}")
+                    print(f"      📊 Quantity: {position.get('quantity', 'N/A')}")
+                    print(f"      🎯 Take Profit: ${position.get('take_profit', 'N/A')}")
+                    print(f"      🛑 Stop Loss: ${position.get('stop_loss', 'N/A')}")
+                    print(f"      🆔 Main Order: {position.get('main_order_id', 'N/A')}")
+                    
+                    # TP/SL Order Status
+                    tp_order = position.get('tp_order_id')
+                    sl_order = position.get('sl_order_id')
+                    print(f"      📋 TP/SL ORDER STATUS:")
+                    print(f"         🟢 TP Order: {'✅ Created' if tp_order else '❌ Failed'} (ID: {tp_order or 'None'})")
+                    print(f"         🔴 SL Order: {'✅ Created' if sl_order else '❌ Failed'} (ID: {sl_order or 'None'})")
+                else:
+                    print(f"   ⚠️ Pozisyon aktif pozisyonlar listesinde bulunamadı")
+                    
+                # Check database for saved position
+                db_positions = db.execute_query(
+                    "SELECT * FROM active_positions WHERE symbol = ? AND status = 'ACTIVE' ORDER BY created_at DESC LIMIT 1",
+                    (test_signal['symbol'],)
+                )
+                if db_positions:
+                    print(f"   💾 Pozisyon database'e kaydedildi ✅")
+                else:
+                    print(f"   💾 Pozisyon database'e kaydedilemedi ❌")
+                    
+            except Exception as pos_error:
+                print(f"   ⚠️ Pozisyon detayları alınamadı: {pos_error}")
+                
         else:
             print(f"   ❌ Trade başarısız!")
             print(f"   🔍 Olası sebepler:")
@@ -208,15 +296,54 @@ Bu test kod:
         print(f"🏁 TEST TAMAMLANDI")
         print(f"{'='*80}")
         
-        # 7. AKTİF POZİSYON KONTROLÜ
+        # 7. AKTİF POZİSYON KONTROLÜ - DETAYLI
+        print(f"\n{'='*60}")
+        print(f"📊 7. AKTİF POZİSYONLAR KONTROLÜ")
+        print(f"{'='*60}")
+        
         try:
-            positions = db.execute_query("SELECT * FROM active_positions WHERE status = 'open'")
-            if positions:
-                print(f"📊 Aktif pozisyonlar var: {len(positions)} adet")
+            # Memory'deki aktif pozisyonlar
+            if 'executor' in locals():
+                memory_positions = executor.get_active_positions()
+                print(f"💾 Memory'deki aktif pozisyonlar: {len(memory_positions)}")
+                
+                for symbol, pos in memory_positions.items():
+                    print(f"   🔸 {symbol}:")
+                    print(f"      • Entry: ${pos.get('entry_price', 'N/A')}")
+                    print(f"      • Quantity: {pos.get('quantity', 'N/A')}")
+                    print(f"      • TP Order: {pos.get('tp_order_id', 'None')}")
+                    print(f"      • SL Order: {pos.get('sl_order_id', 'None')}")
+            
+            # Database'deki aktif pozisyonlar
+            db_positions = db.execute_query("SELECT * FROM active_positions WHERE status = 'ACTIVE'")
+            print(f"🗃️ Database'deki aktif pozisyonlar: {len(db_positions) if db_positions else 0}")
+            
+            if db_positions:
+                for pos in db_positions:
+                    symbol = pos[1] if len(pos) > 1 else "Unknown"  # symbol column
+                    print(f"   🔹 {symbol}:")
+                    entry_price = pos[4] if len(pos) > 4 else "N/A"  # entry_price column
+                    quantity = pos[5] if len(pos) > 5 else "N/A"     # quantity column
+                    tp_order = pos[8] if len(pos) > 8 else "None"    # tp_order_id column
+                    sl_order = pos[9] if len(pos) > 9 else "None"    # sl_order_id column
+                    print(f"      • Entry: ${entry_price}")
+                    print(f"      • Quantity: {quantity}")
+                    print(f"      • TP Order: {tp_order}")
+                    print(f"      • SL Order: {sl_order}")
             else:
-                print(f"📭 Aktif pozisyon bulunamadı")
-        except:
-            pass
+                print(f"   📭 Database'de aktif pozisyon bulunamadı")
+                
+        except Exception as pos_check_error:
+            print(f"❌ Pozisyon kontrolü hatası: {pos_check_error}")
+        
+        # Trade history kontrolü
+        try:
+            recent_trades = db.execute_query(
+                "SELECT * FROM trade_history WHERE timestamp >= datetime('now', '-1 hour') ORDER BY timestamp DESC LIMIT 5"
+            )
+            print(f"📈 Son 1 saat içindeki trade'ler: {len(recent_trades) if recent_trades else 0}")
+        except Exception as trade_check_error:
+            print(f"❌ Trade history kontrolü hatası: {trade_check_error}")
         
     except ImportError as e:
         print(f"❌ Import error: {e}")

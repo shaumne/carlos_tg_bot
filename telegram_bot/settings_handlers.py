@@ -393,7 +393,7 @@ Enter new value or type 'cancel' to cancel.
                 settings_json = json.dumps(exported_settings, indent=2, ensure_ascii=False)
                 
                 message = f"""
-📁 **Ayarlar Export Edildi**
+📁 **Settings Exported**
 
 ```json
 {settings_json}
@@ -415,11 +415,11 @@ To import use `/settings` → Import.
             await self._send_error_message(update_or_query, "Error exporting settings.")
     
     async def handle_settings_status(self, update_or_query):
-        """Ayar durumu raporu"""
+        """Settings status report"""
         try:
             restart_required = self.settings_manager.get_settings_requiring_restart()
             
-            message = "📊 **Ayar Durumu Raporu**\n\n"
+            message = "📊 **Settings Status Report**\n\n"
             
             # Runtime vs restart required ayarlar
             runtime_count = 0
@@ -438,7 +438,7 @@ To import use `/settings` → Import.
             message += f"⚠️ **Restart Required:** {restart_count} (restart required)\n\n"
             
             if restart_required:
-                message += "🔄 **Restart Gereken Ayarlar:**\n"
+                message += "🔄 **Settings Requiring Restart:**\n"
                 for setting in restart_required:
                     message += f"• `{setting}`\n"
                 message += "\n⚠️ Bot must be restarted for these settings to take effect!"
@@ -556,6 +556,6 @@ To import use `/settings` → Import.
         
         await self._send_or_edit_message(
             update_or_query, 
-            f"❌ **Hata**\n\n{error_text}", 
+            f"❌ **Error**\n\n{error_text}", 
             reply_markup
         )
