@@ -84,12 +84,20 @@ Bu test kod:
             # Try to get Telegram bot instance (optional)
             telegram_bot = None
             try:
-                from telegram_bot.bot_core import TelegramBot
-                telegram_bot = TelegramBot(config, db)
-                print(f"   📞 Telegram bot: ✅ (Notifications will be sent)")
+                # Check if telegram configuration exists first
+                if hasattr(config, 'telegram') and hasattr(config.telegram, 'bot_token'):
+                    from telegram_bot.bot_core import TelegramBot
+                    telegram_bot = TelegramBot(config, db)
+                    print(f"   📞 Telegram bot: ✅ (Notifications will be sent)")
+                else:
+                    print(f"   📞 Telegram bot: ❌ (No bot token configured)")
+                    telegram_bot = None
             except Exception as telegram_error:
                 print(f"   📞 Telegram bot: ❌ (No notifications)")
+                print(f"   📞 Reason: {str(telegram_error)}")
                 logger.debug(f"Telegram bot init failed: {telegram_error}")
+                # Continue without telegram bot
+                telegram_bot = None
             
             executor = simple_trade_executor.SimpleTradeExecutor(config, db, telegram_bot=telegram_bot)
             

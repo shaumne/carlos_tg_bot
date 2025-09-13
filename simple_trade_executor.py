@@ -515,11 +515,15 @@ class SimpleTradeExecutor:
             
             base_currency = original_symbol.split('_')[0] if '_' in original_symbol else original_symbol.replace('USD', '').replace('USDT', '')
             
-            # Format quantity
+            # Format quantity with buffer for SL orders (reduce by 0.1% to avoid balance issues)
+            available_quantity = float(quantity) * 0.999  # 0.1% buffer for fees/rounding
+            
             if base_currency in ["SUI", "BONK", "SHIB", "DOGE", "PEPE"]:
-                formatted_quantity = str(int(float(quantity)))
+                formatted_quantity = str(int(available_quantity))
             else:
-                formatted_quantity = "{:.6f}".format(float(quantity)).rstrip('0').rstrip('.')
+                formatted_quantity = "{:.6f}".format(available_quantity).rstrip('0').rstrip('.')
+            
+            logger.info(f"TP/SL orders: Original quantity: {quantity}, Adjusted quantity: {formatted_quantity}")
             
             tp_order_id = None
             sl_order_id = None
@@ -578,15 +582,31 @@ class SimpleTradeExecutor:
                     logger.error(f"❌ Failed to place TP order with {format_attempt}: {tp_response}")
                     continue
                 
-                # Stop Loss Order - Clean price formatting
+                # Stop Loss Order - Clean price formatting  
                 clean_sl_price = "{:.2f}".format(float(stop_loss_price))
                 sl_params = {
                     "instrument_name": format_attempt,
                     "side": "SELL",
-                    "type": "LIMIT",
+                    "type": "LIMIT",  # Use LIMIT for now (more compatible)
                     "price": clean_sl_price,
                     "quantity": formatted_quantity
                 }
+                
+                logger.info(f"SL Order params: {sl_params}")
+                
+                # Check available balance before placing SL order
+                current_balance = self.get_balance(base_currency)
+                logger.info(f"Available {base_currency} balance: {current_balance}, Required: {formatted_quantity}")
+                
+                if float(current_balance) < float(formatted_quantity):
+                    logger.warning(f"❌ Insufficient {base_currency} balance for SL order: {current_balance} < {formatted_quantity}")
+                    # Try with smaller quantity
+                    reduced_quantity = float(formatted_quantity) * 0.95  # Reduce by 5%
+                    if base_currency in ["SUI", "BONK", "SHIB", "DOGE", "PEPE"]:
+                        sl_params["quantity"] = str(int(reduced_quantity))
+                    else:
+                        sl_params["quantity"] = "{:.6f}".format(reduced_quantity).rstrip('0').rstrip('.')
+                    logger.info(f"Retrying SL with reduced quantity: {sl_params['quantity']}")
                 
                 sl_response = self.send_request("private/create-order", sl_params)
                 if sl_response and sl_response.get("code") == 0:
@@ -594,6 +614,10 @@ class SimpleTradeExecutor:
                     logger.info(f"✅ SL order placed with format {format_attempt}: {sl_order_id}")
                 else:
                     logger.error(f"❌ Failed to place SL order with {format_attempt}: {sl_response}")
+                    # If it's still a balance issue, skip remaining formats
+                    if sl_response and sl_response.get("code") == 306:  # INSUFFICIENT_AVAILABLE_BALANCE
+                        logger.error(f"Balance issue persists, skipping SL order creation")
+                        break
                 
                 # If we got here, we found a working format - break out of loop
                 break
@@ -804,6 +828,15 @@ class SimpleTradeExecutor:
         """Send trade notification to Telegram (sync version)"""
         if not self.telegram_bot:
             logger.debug("No Telegram bot available for trade notification")
+            # Fallback: Log the notification that would have been sent
+            action = trade_data.get('action', trade_data.get('side', 'UNKNOWN'))
+            symbol = trade_data.get('symbol', 'UNKNOWN')
+            price = trade_data.get('price', trade_data.get('actual_price', 0))
+            
+            if success:
+                logger.info(f"📱 NOTIFICATION (would send to Telegram): ✅ {action} {symbol} executed at ${price}")
+            else:
+                logger.info(f"📱 NOTIFICATION (would send to Telegram): ❌ {action} {symbol} failed")
             return
         
         try:
@@ -1373,9 +1406,12 @@ def execute_trade(trade_signal: Dict[str, Any]) -> bool:
         try:
             from telegram_bot.bot_core import TelegramBot
             telegram_bot = TelegramBot(config, db)
-            logger.debug("Telegram bot initialized for notifications")
+            logger.info("✅ Telegram bot initialized for notifications")
+        except ImportError as e:
+            logger.debug(f"Telegram bot module not available: {str(e)}")
         except Exception as e:
-            logger.debug(f"Telegram bot init failed (notifications disabled): {str(e)}")
+            logger.warning(f"Telegram bot init failed (notifications disabled): {str(e)}")
+            logger.debug(f"Telegram error details: {type(e).__name__}: {str(e)}")
         
         # Create real trade executor
         executor = SimpleTradeExecutor(config, db, telegram_bot=telegram_bot)
