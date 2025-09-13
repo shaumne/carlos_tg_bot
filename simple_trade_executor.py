@@ -22,10 +22,11 @@ logger = logging.getLogger(__name__)
 class SimpleTradeExecutor:
     """Real trade executor for signals with Crypto.com Exchange API"""
     
-    def __init__(self, config_manager, database_manager, exchange_api=None):
+    def __init__(self, config_manager, database_manager, exchange_api=None, telegram_bot=None):
         self.config = config_manager
         self.db = database_manager
         self.exchange_api = exchange_api
+        self.telegram_bot = telegram_bot
         
         # Trade tracking
         self.active_positions = {}  # {symbol: position_data}
@@ -787,11 +788,102 @@ class SimpleTradeExecutor:
             trade_id = self._save_trade_to_db(trade_signal_with_details, 'EXECUTED')
             logger.info(f"✅ Real trade saved to database: ID {trade_id}")
             
+            # Send trade notification to Telegram if bot is available
+            self._send_trade_notification_sync(trade_signal_with_details, success=True)
+            
             return True
             
         except Exception as e:
             logger.error(f"❌ Error in real trade execution: {str(e)}")
+            
+            # Send failure notification
+            self._send_trade_notification_sync(trade_signal, success=False)
             return False
+    
+    def _send_trade_notification_sync(self, trade_data: Dict[str, Any], success: bool):
+        """Send trade notification to Telegram (sync version)"""
+        if not self.telegram_bot:
+            logger.debug("No Telegram bot available for trade notification")
+            return
+        
+        try:
+            import asyncio
+            import threading
+            
+            # Prepare notification message
+            action = trade_data.get('action', trade_data.get('side', 'UNKNOWN'))
+            symbol = trade_data.get('symbol', 'UNKNOWN')
+            price = trade_data.get('price', trade_data.get('actual_price', 0))
+            confidence = trade_data.get('confidence', 0)
+            take_profit = trade_data.get('take_profit', 0)
+            stop_loss = trade_data.get('stop_loss', 0)
+            reasoning = trade_data.get('reasoning', 'Direct trade execution')
+            actual_quantity = trade_data.get('actual_quantity', trade_data.get('amount', 0))
+            
+            if success:
+                message = f"""✅ <b>Trade Executed Successfully</b>
+
+💰 <b>{action} {symbol}</b>
+• Price: ${price:.4f}
+• Quantity: {actual_quantity}
+• Confidence: {confidence:.1f}%
+• Take Profit: ${take_profit:.4f}
+• Stop Loss: ${stop_loss:.4f}
+
+📝 <b>Reasoning:</b>
+{reasoning}
+
+🕐 <b>Time:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+            else:
+                message = f"""❌ <b>Trade Execution Failed</b>
+
+💰 <b>{action} {symbol}</b>
+• Price: ${price:.4f}
+• Confidence: {confidence:.1f}%
+
+📝 <b>Reasoning:</b>
+{reasoning}
+
+⚠️ <b>Check logs for details</b>
+
+🕐 <b>Time:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+            
+            # Send notification asynchronously
+            def send_notification():
+                try:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    loop.run_until_complete(self._send_telegram_message(message))
+                    loop.close()
+                except Exception as e:
+                    logger.error(f"Error in notification thread: {str(e)}")
+            
+            # Run in separate thread to avoid blocking
+            notification_thread = threading.Thread(target=send_notification, daemon=True)
+            notification_thread.start()
+            
+        except Exception as e:
+            logger.error(f"Error preparing trade notification: {str(e)}")
+    
+    async def _send_telegram_message(self, message: str):
+        """Send message to Telegram chats"""
+        try:
+            if hasattr(self.config.telegram, 'signal_chat_ids'):
+                signal_chat_ids = self.config.telegram.signal_chat_ids
+                for chat_id in signal_chat_ids:
+                    try:
+                        await self.telegram_bot.application.bot.send_message(
+                            chat_id=chat_id,
+                            text=message,
+                            parse_mode='HTML'
+                        )
+                    except Exception as e:
+                        logger.error(f"Failed to send message to chat {chat_id}: {str(e)}")
+            else:
+                logger.warning("No signal_chat_ids configured for notifications")
+                
+        except Exception as e:
+            logger.error(f"Error sending telegram message: {str(e)}")
     
     def _wait_for_order_fill(self, order_id: str, symbol: str, timeout: int = 150) -> bool:
         """Wait for order to be filled (following trade_executor.py approach)"""
@@ -1276,8 +1368,17 @@ def execute_trade(trade_signal: Dict[str, Any]) -> bool:
             logger.error("❌ No API secret configured - Real trading requires exchange credentials")
             return False
         
+        # Try to get Telegram bot instance for notifications
+        telegram_bot = None
+        try:
+            from telegram_bot.bot_core import TelegramBot
+            telegram_bot = TelegramBot(config, db)
+            logger.debug("Telegram bot initialized for notifications")
+        except Exception as e:
+            logger.debug(f"Telegram bot init failed (notifications disabled): {str(e)}")
+        
         # Create real trade executor
-        executor = SimpleTradeExecutor(config, db)
+        executor = SimpleTradeExecutor(config, db, telegram_bot=telegram_bot)
         
         logger.info(f"🚀 Executing REAL trade via SimpleTradeExecutor")
         

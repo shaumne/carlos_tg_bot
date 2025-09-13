@@ -306,7 +306,7 @@ class BackgroundAnalyzer:
                     
                     # Execute trade if it's BUY or SELL signal
                     if signal.signal_type in ["BUY", "SELL"]:
-                        trade_result = self._execute_trade(signal)
+                        trade_result = await self._execute_trade(signal)
                         if trade_result:
                             logger.info(f"💰 {signal.signal_type} trade executed for {symbol}")
                         else:
@@ -404,7 +404,7 @@ class BackgroundAnalyzer:
             logger.error(f"❌ Failed to setup trade executor: {str(e)}")
             self._trade_executor_module = None
     
-    def _execute_trade(self, signal: TradingSignal):
+    async def _execute_trade(self, signal: TradingSignal):
         """Execute trade based on signal"""
         try:
             # Check if auto trading is enabled
@@ -441,9 +441,15 @@ class BackgroundAnalyzer:
             
             if result:
                 logger.info(f"✅ Trade executed successfully: {signal.symbol} {signal.signal_type}")
+                
+                # Send trade success notification to Telegram
+                await self._send_trade_notification(signal, trade_data, success=True)
                 return True
             else:
                 logger.warning(f"❌ Trade execution failed: {signal.symbol} {signal.signal_type}")
+                
+                # Send trade failure notification to Telegram  
+                await self._send_trade_notification(signal, trade_data, success=False)
                 return False
                 
         except Exception as e:
@@ -475,6 +481,54 @@ class BackgroundAnalyzer:
             
         except Exception as e:
             logger.error(f"Error sending signal notification: {str(e)}")
+    
+    async def _send_trade_notification(self, signal: TradingSignal, trade_data: Dict, success: bool):
+        """Trade execution result notification"""
+        if not self.telegram_bot:
+            return
+        
+        try:
+            # Prepare trade notification message
+            action = trade_data['action']
+            symbol = trade_data['symbol']
+            price = trade_data['price']
+            confidence = trade_data['confidence']
+            take_profit = trade_data.get('take_profit', 0)
+            stop_loss = trade_data.get('stop_loss', 0)
+            reasoning = trade_data.get('reasoning', 'Automated signal')
+            
+            if success:
+                message = f"""✅ <b>Trade Executed Successfully</b>
+
+💰 <b>{action} {symbol}</b>
+• Price: ${price:.4f}
+• Confidence: {confidence:.1f}%
+• Take Profit: ${take_profit:.4f}
+• Stop Loss: ${stop_loss:.4f}
+
+📝 <b>Reasoning:</b>
+{reasoning}
+
+🕐 <b>Time:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+            else:
+                message = f"""❌ <b>Trade Execution Failed</b>
+
+💰 <b>{action} {symbol}</b>
+• Price: ${price:.4f}
+• Confidence: {confidence:.1f}%
+
+📝 <b>Reasoning:</b>
+{reasoning}
+
+⚠️ <b>Check logs for details</b>
+
+🕐 <b>Time:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+            
+            # Send to all telegram chats
+            await self._send_to_signal_chats(message)
+            
+        except Exception as e:
+            logger.error(f"Error sending trade notification: {str(e)}")
     
     async def _send_startup_notification(self):
         """Başlangıç bildirimi"""

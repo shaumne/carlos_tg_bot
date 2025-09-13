@@ -81,7 +81,17 @@ Bu test kod:
         print(f"{'='*60}")
         
         try:
-            executor = simple_trade_executor.SimpleTradeExecutor(config, db)
+            # Try to get Telegram bot instance (optional)
+            telegram_bot = None
+            try:
+                from telegram_bot.bot_core import TelegramBot
+                telegram_bot = TelegramBot(config, db)
+                print(f"   📞 Telegram bot: ✅ (Notifications will be sent)")
+            except Exception as telegram_error:
+                print(f"   📞 Telegram bot: ❌ (No notifications)")
+                logger.debug(f"Telegram bot init failed: {telegram_error}")
+            
+            executor = simple_trade_executor.SimpleTradeExecutor(config, db, telegram_bot=telegram_bot)
             
             # Check USDT balance
             usdt_balance = executor.get_balance("USDT")
