@@ -127,7 +127,7 @@ Bu test kod:
         
         # Database'den watched_coins listesini al
         try:
-            watched_coins_query = "SELECT symbol, formatted_symbol FROM watched_coins WHERE active = 1"
+            watched_coins_query = "SELECT symbol, formatted_symbol FROM watched_coins WHERE is_active = 1"
             watched_coins = db.execute_query(watched_coins_query)
             
             if not watched_coins:
@@ -143,8 +143,8 @@ Bu test kod:
                 for symbol, formatted in default_coins:
                     try:
                         db.execute_update(
-                            "INSERT OR IGNORE INTO watched_coins (symbol, formatted_symbol, active, notes) VALUES (?, ?, ?, ?)",
-                            (symbol, formatted, True, "Added by test script")
+                            "INSERT OR IGNORE INTO watched_coins (symbol, formatted_symbol, is_active, created_by) VALUES (?, ?, ?, ?)",
+                            (symbol, formatted, True, "test_script")
                         )
                     except:
                         pass
@@ -204,8 +204,8 @@ Bu test kod:
         
         print(f"🔄 Trade executor'a sinyal gönderiliyor...")
         
-        # Execute the trade
-        result = simple_trade_executor.execute_trade(test_signal)
+        # Execute the trade using the same executor instance
+        result = executor.execute_trade(test_signal)
         
         print(f"\n📊 SONUÇ:")
         if result:
@@ -323,11 +323,13 @@ Bu test kod:
                     symbol = pos[1] if len(pos) > 1 else "Unknown"  # symbol column
                     print(f"   🔹 {symbol}:")
                     entry_price = pos[4] if len(pos) > 4 else "N/A"  # entry_price column
-                    quantity = pos[5] if len(pos) > 5 else "N/A"     # quantity column
-                    tp_order = pos[8] if len(pos) > 8 else "None"    # tp_order_id column
-                    sl_order = pos[9] if len(pos) > 9 else "None"    # sl_order_id column
+                    quantity = pos[5] if len(pos) > 5 else "N/A"     # quantity column  
+                    main_order = pos[8] if len(pos) > 8 else "None"  # order_id column
+                    tp_order = pos[9] if len(pos) > 9 else "None"    # tp_order_id column
+                    sl_order = pos[10] if len(pos) > 10 else "None"  # sl_order_id column
                     print(f"      • Entry: ${entry_price}")
                     print(f"      • Quantity: {quantity}")
+                    print(f"      • Main Order: {main_order}")
                     print(f"      • TP Order: {tp_order}")
                     print(f"      • SL Order: {sl_order}")
             else:
