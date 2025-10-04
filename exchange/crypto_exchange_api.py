@@ -468,32 +468,35 @@ class CryptoExchangeAPI:
                     if data.get("code") == 0 and "result" in data:
                         result = data["result"]
                         
-                        # Try different possible field names for instruments list
+                        # Crypto.com API uses "data" field for instruments list
                         instruments = None
-                        if "instruments" in result:
-                            instruments = result["instruments"]
-                        elif "data" in result:
+                        if "data" in result:
                             instruments = result["data"]
+                        elif "instruments" in result:
+                            instruments = result["instruments"]
                         elif isinstance(result, list):
                             instruments = result
                         else:
                             logger.warning(f"Unknown result format. Keys: {result.keys() if isinstance(result, dict) else type(result)}")
-                            # Try to use result directly if it looks like a dict with instrument data
-                            if isinstance(result, dict):
-                                # Maybe it's a single-level dict with instrument names as keys?
-                                instruments = []
+                            instruments = []
                         
-                        if instruments:
+                        if instruments and isinstance(instruments, list):
                             # Build cache dictionary
                             for instrument in instruments:
                                 if isinstance(instrument, dict):
-                                    instrument_name = instrument.get("instrument_name", "")
-                                    if instrument_name:
+                                    # Crypto.com uses "symbol" field (not "instrument_name")
+                                    instrument_name = instrument.get("symbol", instrument.get("instrument_name", ""))
+                                    
+                                    # Only cache SPOT pairs (CCY_PAIR), not perpetuals
+                                    inst_type = instrument.get("inst_type", "")
+                                    
+                                    if instrument_name and inst_type == "CCY_PAIR":
                                         self._instrument_cache[instrument_name] = {
                                             "quantity_decimals": instrument.get("quantity_decimals", 2),
-                                            "price_decimals": instrument.get("price_decimals", 2),
-                                            "min_quantity": instrument.get("min_quantity", "0.01"),
-                                            "max_quantity": instrument.get("max_quantity", "1000000"),
+                                            "price_decimals": instrument.get("quote_decimals", 2),  # Use quote_decimals for price
+                                            "min_quantity": instrument.get("qty_tick_size", "0.01"),  # Use qty_tick_size as min
+                                            "max_quantity": "1000000",  # Default max
+                                            "inst_type": inst_type,
                                         }
                             
                             self._instrument_cache_time = current_time
