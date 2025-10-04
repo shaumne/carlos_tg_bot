@@ -497,19 +497,35 @@ class SimpleTradeExecutor:
             return None
     
     def _fallback_format_quantity(self, quantity):
-        """Fallback quantity formatting when exchange_api not available"""
+        """
+        Fallback quantity formatting when exchange_api not available
+        Smart detection based on quantity magnitude
+        """
+        # For very large quantities (meme coins) - use integers
         if quantity >= 1000:
             formatted = str(int(quantity))
+        # For quantities >= 1 - check if it's close to integer
         elif quantity >= 1:
-            formatted = "{:.2f}".format(quantity).rstrip('0').rstrip('.')
+            # If very close to integer (within 0.01), use integer
+            if abs(quantity - round(quantity)) < 0.01:
+                formatted = str(int(round(quantity)))
+            else:
+                # Otherwise use 2 decimals
+                formatted = "{:.2f}".format(quantity).rstrip('0').rstrip('.')
+        # For small quantities (0.01 to 1) - use 4 decimals
         elif quantity >= 0.01:
             formatted = "{:.4f}".format(quantity).rstrip('0').rstrip('.')
+        # For very small quantities (<0.01) - use 8 decimals
         else:
             formatted = "{:.8f}".format(quantity).rstrip('0').rstrip('.')
         
         # Remove trailing decimal point if present
         if formatted.endswith('.'):
             formatted = formatted[:-1]
+        
+        # Ensure we don't have empty string
+        if not formatted or formatted == '':
+            formatted = str(int(quantity)) if quantity >= 1 else str(quantity)
         
         return formatted
     

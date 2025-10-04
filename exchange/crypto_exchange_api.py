@@ -463,31 +463,64 @@ class CryptoExchangeAPI:
                 if response.status_code == 200:
                     data = response.json()
                     
+                    logger.debug(f"API Response keys: {data.keys() if isinstance(data, dict) else 'Not a dict'}")
+                    
                     if data.get("code") == 0 and "result" in data:
-                        instruments = data["result"].get("instruments", [])
+                        result = data["result"]
                         
-                        # Build cache dictionary
-                        for instrument in instruments:
-                            instrument_name = instrument.get("instrument_name", "")
-                            self._instrument_cache[instrument_name] = {
-                                "quantity_decimals": instrument.get("quantity_decimals", 2),
-                                "price_decimals": instrument.get("price_decimals", 2),
-                                "min_quantity": instrument.get("min_quantity", "0.01"),
-                                "max_quantity": instrument.get("max_quantity", "1000000"),
-                            }
+                        # Try different possible field names for instruments list
+                        instruments = None
+                        if "instruments" in result:
+                            instruments = result["instruments"]
+                        elif "data" in result:
+                            instruments = result["data"]
+                        elif isinstance(result, list):
+                            instruments = result
+                        else:
+                            logger.warning(f"Unknown result format. Keys: {result.keys() if isinstance(result, dict) else type(result)}")
+                            # Try to use result directly if it looks like a dict with instrument data
+                            if isinstance(result, dict):
+                                # Maybe it's a single-level dict with instrument names as keys?
+                                instruments = []
                         
-                        self._instrument_cache_time = current_time
-                        logger.info(f"✅ Cached metadata for {len(self._instrument_cache)} instruments")
-                        return self._instrument_cache
+                        if instruments:
+                            # Build cache dictionary
+                            for instrument in instruments:
+                                if isinstance(instrument, dict):
+                                    instrument_name = instrument.get("instrument_name", "")
+                                    if instrument_name:
+                                        self._instrument_cache[instrument_name] = {
+                                            "quantity_decimals": instrument.get("quantity_decimals", 2),
+                                            "price_decimals": instrument.get("price_decimals", 2),
+                                            "min_quantity": instrument.get("min_quantity", "0.01"),
+                                            "max_quantity": instrument.get("max_quantity", "1000000"),
+                                        }
+                            
+                            self._instrument_cache_time = current_time
+                            logger.info(f"✅ Cached metadata for {len(self._instrument_cache)} instruments")
+                            
+                            # Debug: Show a few examples
+                            if self._instrument_cache:
+                                sample_instruments = list(self._instrument_cache.keys())[:3]
+                                logger.debug(f"Sample instruments cached: {sample_instruments}")
+                            
+                            return self._instrument_cache
+                        else:
+                            logger.warning(f"No instruments found in result. Result structure: {type(result)}")
+                            return self._instrument_cache
                     else:
-                        logger.warning(f"Invalid response from instruments API: {data}")
+                        logger.warning(f"Invalid API response. Code: {data.get('code')}, Has result: {'result' in data}")
+                        logger.debug(f"Full response: {data}")
                         return self._instrument_cache
                 else:
                     logger.warning(f"HTTP error fetching instruments: {response.status_code}")
+                    logger.debug(f"Response text: {response.text[:500]}")
                     return self._instrument_cache
                     
             except Exception as fetch_error:
                 logger.error(f"Error in HTTP request for instruments: {str(fetch_error)}")
+                import traceback
+                logger.debug(traceback.format_exc())
                 return self._instrument_cache
                 
         except Exception as e:
@@ -541,23 +574,33 @@ class CryptoExchangeAPI:
                     formatted = str(int(quantity))
                     decimals = 0
                 elif quantity >= 1:
-                    # Medium quantities - try 2 decimals
-                    decimal_quantity = Decimal(str(quantity))
-                    rounded = decimal_quantity.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-                    formatted = str(rounded)
-                    decimals = 2
+                    # Medium quantities - check if close to integer
+                    if abs(quantity - round(quantity)) < 0.01:
+                        # Very close to integer - use integer format
+                        formatted = str(int(round(quantity)))
+                        decimals = 0
+                    else:
+                        # Use 2 decimals
+                        decimal_quantity = Decimal(str(quantity))
+                        rounded = decimal_quantity.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+                        formatted = str(rounded).rstrip('0').rstrip('.')
+                        decimals = 2
                 elif quantity >= 0.01:
-                    # Small quantities - 2-4 decimals
+                    # Small quantities - 4 decimals
                     decimal_quantity = Decimal(str(quantity))
                     rounded = decimal_quantity.quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)
                     formatted = str(rounded).rstrip('0').rstrip('.')
                     decimals = 4
                 else:
-                    # Very small quantities - 6-8 decimals
+                    # Very small quantities - 8 decimals
                     decimal_quantity = Decimal(str(quantity))
                     rounded = decimal_quantity.quantize(Decimal('0.00000001'), rounding=ROUND_HALF_UP)
                     formatted = str(rounded).rstrip('0').rstrip('.')
                     decimals = 8
+                
+                # Ensure no trailing decimal point
+                if formatted.endswith('.'):
+                    formatted = formatted[:-1]
                 
                 logger.info(f"Formatted quantity for {symbol}: {quantity} -> {formatted} (decimals: {decimals}, auto-detected)")
                 return formatted

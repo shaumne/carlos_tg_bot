@@ -8,9 +8,9 @@ Bu kod dinamik quantity sisteminin çalışıp çalışmadığını test eder.
 import logging
 import sys
 
-# Setup basic logging
+# Setup basic logging with DEBUG for more info
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format='%(asctime)s | %(levelname)s | %(message)s',
     handlers=[logging.StreamHandler(sys.stdout)]
 )
