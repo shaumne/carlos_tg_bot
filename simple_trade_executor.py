@@ -522,23 +522,28 @@ class SimpleTradeExecutor:
             # Format quantity with buffer for SL orders (reduce by 0.1% to avoid balance issues)
             available_quantity = float(quantity) * 0.999  # 0.1% buffer for fees/rounding
             
-            # Exchange-specific quantity formatting
-            if base_currency in ["SUI", "BONK", "SHIB", "DOGE", "PEPE"]:
-                formatted_quantity = str(int(available_quantity))
-            elif base_currency in ["SOL"]:
-                # SOL requires specific decimal precision (3 decimal places)
-                formatted_quantity = "{:.3f}".format(available_quantity)
-            elif base_currency in ["ETH"]:
-                # ETH requires lower precision (4 decimal places max)
-                formatted_quantity = "{:.4f}".format(available_quantity).rstrip('0').rstrip('.')
-            elif base_currency in ["BTC"]:
-                # BTC requires higher precision (6+ decimal places)
-                formatted_quantity = "{:.6f}".format(available_quantity).rstrip('0').rstrip('.')
+            # DYNAMIC quantity formatting using exchange_api's intelligent system
+            if self.exchange_api:
+                # Use exchange API's dynamic format_quantity method (API metadata + smart fallback)
+                formatted_quantity = self.exchange_api.format_quantity(formatted_pair, available_quantity)
+                logger.info(f"TP/SL orders: Original quantity: {quantity}, Adjusted quantity: {formatted_quantity} (via exchange_api)")
             else:
-                # Default for other coins
-                formatted_quantity = "{:.4f}".format(available_quantity).rstrip('0').rstrip('.')
-            
-            logger.info(f"TP/SL orders: Original quantity: {quantity}, Adjusted quantity: {formatted_quantity}")
+                # Fallback: Smart auto-detection based on quantity value
+                logger.warning("Exchange API not available, using fallback formatting")
+                if available_quantity >= 1000:
+                    formatted_quantity = str(int(available_quantity))
+                elif available_quantity >= 1:
+                    formatted_quantity = "{:.2f}".format(available_quantity).rstrip('0').rstrip('.')
+                elif available_quantity >= 0.01:
+                    formatted_quantity = "{:.4f}".format(available_quantity).rstrip('0').rstrip('.')
+                else:
+                    formatted_quantity = "{:.8f}".format(available_quantity).rstrip('0').rstrip('.')
+                
+                # Remove trailing decimal point if present
+                if formatted_quantity.endswith('.'):
+                    formatted_quantity = formatted_quantity[:-1]
+                
+                logger.info(f"TP/SL orders: Original quantity: {quantity}, Adjusted quantity: {formatted_quantity} (fallback)")
             
             tp_order_id = None
             sl_order_id = None
@@ -617,10 +622,22 @@ class SimpleTradeExecutor:
                     logger.warning(f"❌ Insufficient {base_currency} balance for SL order: {current_balance} < {formatted_quantity}")
                     # Try with smaller quantity
                     reduced_quantity = float(formatted_quantity) * 0.95  # Reduce by 5%
-                    if base_currency in ["SUI", "BONK", "SHIB", "DOGE", "PEPE"]:
-                        sl_params["quantity"] = str(int(reduced_quantity))
+                    
+                    # Use dynamic formatting for reduced quantity too
+                    if self.exchange_api:
+                        sl_params["quantity"] = self.exchange_api.format_quantity(format_attempt, reduced_quantity)
                     else:
-                        sl_params["quantity"] = "{:.6f}".format(reduced_quantity).rstrip('0').rstrip('.')
+                        # Fallback formatting
+                        if reduced_quantity >= 1000:
+                            sl_params["quantity"] = str(int(reduced_quantity))
+                        elif reduced_quantity >= 1:
+                            sl_params["quantity"] = "{:.2f}".format(reduced_quantity).rstrip('0').rstrip('.')
+                        else:
+                            sl_params["quantity"] = "{:.8f}".format(reduced_quantity).rstrip('0').rstrip('.')
+                        
+                        if sl_params["quantity"].endswith('.'):
+                            sl_params["quantity"] = sl_params["quantity"][:-1]
+                    
                     logger.info(f"Retrying SL with reduced quantity: {sl_params['quantity']}")
                 
                 sl_response = self.send_request("private/create-order", sl_params)
