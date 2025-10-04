@@ -25,21 +25,8 @@ class SimpleTradeExecutor:
     def __init__(self, config_manager, database_manager, exchange_api=None, telegram_bot=None):
         self.config = config_manager
         self.db = database_manager
+        self.exchange_api = exchange_api
         self.telegram_bot = telegram_bot
-        
-        # Exchange API - create if not provided
-        if exchange_api:
-            self.exchange_api = exchange_api
-            logger.info("Using provided exchange_api instance")
-        else:
-            # Create our own exchange_api instance with dynamic quantity formatting
-            try:
-                from exchange.crypto_exchange_api import CryptoExchangeAPI
-                self.exchange_api = CryptoExchangeAPI(config_manager)
-                logger.info("✅ Created CryptoExchangeAPI instance with dynamic quantity formatting")
-            except Exception as e:
-                logger.error(f"Failed to create exchange_api: {str(e)}")
-                self.exchange_api = None
         
         # Trade tracking
         self.active_positions = {}  # {symbol: position_data}
@@ -496,39 +483,6 @@ class SimpleTradeExecutor:
             logger.error(f"Error getting current price for {instrument_name}: {str(e)}")
             return None
     
-    def _fallback_format_quantity(self, quantity):
-        """
-        Fallback quantity formatting when exchange_api not available
-        Smart detection based on quantity magnitude
-        """
-        # For very large quantities (meme coins) - use integers
-        if quantity >= 1000:
-            formatted = str(int(quantity))
-        # For quantities >= 1 - check if it's close to integer
-        elif quantity >= 1:
-            # If very close to integer (within 0.01), use integer
-            if abs(quantity - round(quantity)) < 0.01:
-                formatted = str(int(round(quantity)))
-            else:
-                # Otherwise use 2 decimals
-                formatted = "{:.2f}".format(quantity).rstrip('0').rstrip('.')
-        # For small quantities (0.01 to 1) - use 4 decimals
-        elif quantity >= 0.01:
-            formatted = "{:.4f}".format(quantity).rstrip('0').rstrip('.')
-        # For very small quantities (<0.01) - use 8 decimals
-        else:
-            formatted = "{:.8f}".format(quantity).rstrip('0').rstrip('.')
-        
-        # Remove trailing decimal point if present
-        if formatted.endswith('.'):
-            formatted = formatted[:-1]
-        
-        # Ensure we don't have empty string
-        if not formatted or formatted == '':
-            formatted = str(int(quantity)) if quantity >= 1 else str(quantity)
-        
-        return formatted
-    
     def place_tp_sl_orders(self, symbol, quantity, take_profit_price, stop_loss_price):
         """Place Take Profit and Stop Loss orders"""
         try:
@@ -568,22 +522,23 @@ class SimpleTradeExecutor:
             # Format quantity with buffer for SL orders (reduce by 0.1% to avoid balance issues)
             available_quantity = float(quantity) * 0.999  # 0.1% buffer for fees/rounding
             
-            # DYNAMIC quantity formatting using exchange_api's intelligent system
-            if self.exchange_api and hasattr(self.exchange_api, 'format_quantity'):
-                try:
-                    # Use exchange API's dynamic format_quantity method (API metadata + smart fallback)
-                    formatted_quantity = self.exchange_api.format_quantity(formatted_pair, available_quantity)
-                    logger.info(f"TP/SL orders: Original quantity: {quantity}, Adjusted quantity: {formatted_quantity} (via exchange_api)")
-                except Exception as format_error:
-                    logger.warning(f"Exchange API format_quantity failed: {str(format_error)}, using fallback")
-                    # Fallback to smart detection
-                    formatted_quantity = self._fallback_format_quantity(available_quantity)
-                    logger.info(f"TP/SL orders: Original quantity: {quantity}, Adjusted quantity: {formatted_quantity} (fallback after error)")
+            # Exchange-specific quantity formatting
+            if base_currency in ["SUI", "BONK", "SHIB", "DOGE", "PEPE"]:
+                formatted_quantity = str(int(available_quantity))
+            elif base_currency in ["SOL"]:
+                # SOL requires specific decimal precision (3 decimal places)
+                formatted_quantity = "{:.3f}".format(available_quantity)
+            elif base_currency in ["ETH"]:
+                # ETH requires lower precision (4 decimal places max)
+                formatted_quantity = "{:.4f}".format(available_quantity).rstrip('0').rstrip('.')
+            elif base_currency in ["BTC"]:
+                # BTC requires higher precision (6+ decimal places)
+                formatted_quantity = "{:.6f}".format(available_quantity).rstrip('0').rstrip('.')
             else:
-                # Fallback: Smart auto-detection based on quantity value
-                logger.warning("Exchange API not available, using fallback formatting")
-                formatted_quantity = self._fallback_format_quantity(available_quantity)
-                logger.info(f"TP/SL orders: Original quantity: {quantity}, Adjusted quantity: {formatted_quantity} (fallback)")
+                # Default for other coins
+                formatted_quantity = "{:.4f}".format(available_quantity).rstrip('0').rstrip('.')
+            
+            logger.info(f"TP/SL orders: Original quantity: {quantity}, Adjusted quantity: {formatted_quantity}")
             
             tp_order_id = None
             sl_order_id = None
@@ -662,22 +617,10 @@ class SimpleTradeExecutor:
                     logger.warning(f"❌ Insufficient {base_currency} balance for SL order: {current_balance} < {formatted_quantity}")
                     # Try with smaller quantity
                     reduced_quantity = float(formatted_quantity) * 0.95  # Reduce by 5%
-                    
-                    # Use dynamic formatting for reduced quantity too
-                    if self.exchange_api:
-                        sl_params["quantity"] = self.exchange_api.format_quantity(format_attempt, reduced_quantity)
+                    if base_currency in ["SUI", "BONK", "SHIB", "DOGE", "PEPE"]:
+                        sl_params["quantity"] = str(int(reduced_quantity))
                     else:
-                        # Fallback formatting
-                        if reduced_quantity >= 1000:
-                            sl_params["quantity"] = str(int(reduced_quantity))
-                        elif reduced_quantity >= 1:
-                            sl_params["quantity"] = "{:.2f}".format(reduced_quantity).rstrip('0').rstrip('.')
-                        else:
-                            sl_params["quantity"] = "{:.8f}".format(reduced_quantity).rstrip('0').rstrip('.')
-                        
-                        if sl_params["quantity"].endswith('.'):
-                            sl_params["quantity"] = sl_params["quantity"][:-1]
-                    
+                        sl_params["quantity"] = "{:.6f}".format(reduced_quantity).rstrip('0').rstrip('.')
                     logger.info(f"Retrying SL with reduced quantity: {sl_params['quantity']}")
                 
                 sl_response = self.send_request("private/create-order", sl_params)
@@ -869,7 +812,9 @@ class SimpleTradeExecutor:
                     logger.error(f"❌ Failed to save position to database")
                 
                 # Start TP/SL monitoring if not already running
+                # This monitors TP/SL ORDER STATUS (not prices!) and cancels remaining order when one fills
                 self._start_tp_sl_monitoring()
+                logger.info(f"✅ TP/SL order status monitoring started for {symbol}")
             
             # Save to database with complete information
             trade_signal_with_details = trade_signal.copy()
@@ -1346,36 +1291,57 @@ class SimpleTradeExecutor:
             return None
     
     def _check_tp_sl_conditions(self, position: Dict[str, Any], current_price: float) -> tuple[bool, str]:
-        """Check if TP or SL conditions are met"""
+        """
+        Check if TP or SL orders are filled on exchange
+        NOT checking prices - checking actual order status!
+        """
         try:
+            tp_order_id = position.get('tp_order_id')
+            sl_order_id = position.get('sl_order_id')
             action = position['action']
             entry_price = float(position['entry_price'])
-            take_profit = float(position['take_profit'])
-            stop_loss = float(position['stop_loss'])
             
-            if action == "BUY":
-                # BUY position: TP above entry, SL below entry
-                if current_price >= take_profit:
-                    profit_pct = ((current_price - entry_price) / entry_price) * 100
-                    return True, f"Take Profit hit (+{profit_pct:.2f}%)"
-                elif current_price <= stop_loss:
-                    loss_pct = ((entry_price - current_price) / entry_price) * 100
-                    return True, f"Stop Loss hit (-{loss_pct:.2f}%)"
+            # If no TP/SL orders, return false
+            if not tp_order_id and not sl_order_id:
+                logger.debug(f"No TP/SL orders to monitor for {position['symbol']}")
+                return False, ""
             
-            else:  # SELL position
-                # SELL position: TP below entry, SL above entry
-                if current_price <= take_profit:
-                    profit_pct = ((entry_price - current_price) / entry_price) * 100
-                    return True, f"Take Profit hit (+{profit_pct:.2f}%)"
-                elif current_price >= stop_loss:
-                    loss_pct = ((current_price - entry_price) / entry_price) * 100
-                    return True, f"Stop Loss hit (-{loss_pct:.2f}%)"
+            # Check TP order status
+            if tp_order_id:
+                tp_status = self._get_order_status(tp_order_id)
+                if tp_status == "FILLED":
+                    profit_pct = ((current_price - entry_price) / entry_price) * 100 if action == "BUY" else ((entry_price - current_price) / entry_price) * 100
+                    logger.info(f"✅ TP order FILLED: {tp_order_id}")
+                    return True, f"Take Profit order filled (+{profit_pct:.2f}%)"
+            
+            # Check SL order status
+            if sl_order_id:
+                sl_status = self._get_order_status(sl_order_id)
+                if sl_status == "FILLED":
+                    loss_pct = ((entry_price - current_price) / entry_price) * 100 if action == "BUY" else ((current_price - entry_price) / entry_price) * 100
+                    logger.info(f"🛑 SL order FILLED: {sl_order_id}")
+                    return True, f"Stop Loss order filled (-{loss_pct:.2f}%)"
             
             return False, ""
             
         except Exception as e:
-            logger.error(f"Error checking TP/SL conditions: {str(e)}")
+            logger.error(f"Error checking TP/SL order status: {str(e)}")
             return False, ""
+    
+    def _get_order_status(self, order_id: str) -> Optional[str]:
+        """Get order status from exchange"""
+        try:
+            if not self.exchange_api:
+                return None
+            
+            order_info = self.exchange_api.get_order_details(order_id)
+            if order_info:
+                return order_info.status
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error getting order status for {order_id}: {str(e)}")
+            return None
     
     def _close_position(self, position: Dict[str, Any], current_price: float, reason: str):
         """Close a position and cancel remaining TP/SL orders"""
@@ -1417,13 +1383,11 @@ class SimpleTradeExecutor:
                 else:
                     logger.warning(f"⚠️ Failed to cancel SL order: {sl_order_id}")
             
-            # Execute market sell if needed (for BUY positions)
-            if action == "BUY" and float(quantity) > 0:
-                sell_order_id = self.sell_coin(symbol, quantity)
-                if sell_order_id:
-                    logger.info(f"✅ Market sell executed: {sell_order_id}")
-                else:
-                    logger.error(f"❌ Failed to execute market sell for {symbol}")
+            # ⚠️ NO MARKET SELL NEEDED!
+            # When TP or SL order is FILLED, exchange already executed the sell
+            # We just need to cancel the remaining order
+            logger.info(f"ℹ️  Position closed by exchange order execution")
+            logger.info(f"   No manual market sell needed - TP/SL order handled it")
             
             # Save close trade to database
             close_trade_signal = {
