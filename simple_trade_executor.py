@@ -25,8 +25,21 @@ class SimpleTradeExecutor:
     def __init__(self, config_manager, database_manager, exchange_api=None, telegram_bot=None):
         self.config = config_manager
         self.db = database_manager
-        self.exchange_api = exchange_api
         self.telegram_bot = telegram_bot
+        
+        # Exchange API - create if not provided
+        if exchange_api:
+            self.exchange_api = exchange_api
+            logger.info("Using provided exchange_api instance")
+        else:
+            # Create our own exchange_api instance with dynamic quantity formatting
+            try:
+                from exchange.crypto_exchange_api import CryptoExchangeAPI
+                self.exchange_api = CryptoExchangeAPI(config_manager)
+                logger.info("✅ Created CryptoExchangeAPI instance with dynamic quantity formatting")
+            except Exception as e:
+                logger.error(f"Failed to create exchange_api: {str(e)}")
+                self.exchange_api = None
         
         # Trade tracking
         self.active_positions = {}  # {symbol: position_data}
@@ -483,6 +496,23 @@ class SimpleTradeExecutor:
             logger.error(f"Error getting current price for {instrument_name}: {str(e)}")
             return None
     
+    def _fallback_format_quantity(self, quantity):
+        """Fallback quantity formatting when exchange_api not available"""
+        if quantity >= 1000:
+            formatted = str(int(quantity))
+        elif quantity >= 1:
+            formatted = "{:.2f}".format(quantity).rstrip('0').rstrip('.')
+        elif quantity >= 0.01:
+            formatted = "{:.4f}".format(quantity).rstrip('0').rstrip('.')
+        else:
+            formatted = "{:.8f}".format(quantity).rstrip('0').rstrip('.')
+        
+        # Remove trailing decimal point if present
+        if formatted.endswith('.'):
+            formatted = formatted[:-1]
+        
+        return formatted
+    
     def place_tp_sl_orders(self, symbol, quantity, take_profit_price, stop_loss_price):
         """Place Take Profit and Stop Loss orders"""
         try:
@@ -523,26 +553,20 @@ class SimpleTradeExecutor:
             available_quantity = float(quantity) * 0.999  # 0.1% buffer for fees/rounding
             
             # DYNAMIC quantity formatting using exchange_api's intelligent system
-            if self.exchange_api:
-                # Use exchange API's dynamic format_quantity method (API metadata + smart fallback)
-                formatted_quantity = self.exchange_api.format_quantity(formatted_pair, available_quantity)
-                logger.info(f"TP/SL orders: Original quantity: {quantity}, Adjusted quantity: {formatted_quantity} (via exchange_api)")
+            if self.exchange_api and hasattr(self.exchange_api, 'format_quantity'):
+                try:
+                    # Use exchange API's dynamic format_quantity method (API metadata + smart fallback)
+                    formatted_quantity = self.exchange_api.format_quantity(formatted_pair, available_quantity)
+                    logger.info(f"TP/SL orders: Original quantity: {quantity}, Adjusted quantity: {formatted_quantity} (via exchange_api)")
+                except Exception as format_error:
+                    logger.warning(f"Exchange API format_quantity failed: {str(format_error)}, using fallback")
+                    # Fallback to smart detection
+                    formatted_quantity = self._fallback_format_quantity(available_quantity)
+                    logger.info(f"TP/SL orders: Original quantity: {quantity}, Adjusted quantity: {formatted_quantity} (fallback after error)")
             else:
                 # Fallback: Smart auto-detection based on quantity value
                 logger.warning("Exchange API not available, using fallback formatting")
-                if available_quantity >= 1000:
-                    formatted_quantity = str(int(available_quantity))
-                elif available_quantity >= 1:
-                    formatted_quantity = "{:.2f}".format(available_quantity).rstrip('0').rstrip('.')
-                elif available_quantity >= 0.01:
-                    formatted_quantity = "{:.4f}".format(available_quantity).rstrip('0').rstrip('.')
-                else:
-                    formatted_quantity = "{:.8f}".format(available_quantity).rstrip('0').rstrip('.')
-                
-                # Remove trailing decimal point if present
-                if formatted_quantity.endswith('.'):
-                    formatted_quantity = formatted_quantity[:-1]
-                
+                formatted_quantity = self._fallback_format_quantity(available_quantity)
                 logger.info(f"TP/SL orders: Original quantity: {quantity}, Adjusted quantity: {formatted_quantity} (fallback)")
             
             tp_order_id = None

@@ -110,7 +110,18 @@ Bu test kod:
                 # Continue without telegram bot
                 telegram_bot = None
             
-            executor = simple_trade_executor.SimpleTradeExecutor(config, db, telegram_bot=telegram_bot)
+            # Create executor with exchange_api from telegram_bot if available
+            exchange_api_instance = None
+            if telegram_bot and hasattr(telegram_bot, 'exchange_api'):
+                exchange_api_instance = telegram_bot.exchange_api
+                logger.info("Using exchange_api from telegram_bot")
+            
+            executor = simple_trade_executor.SimpleTradeExecutor(
+                config, 
+                db, 
+                exchange_api=exchange_api_instance,
+                telegram_bot=telegram_bot
+            )
             
             # Check USDT balance
             usdt_balance = executor.get_balance("USDT")
