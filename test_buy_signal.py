@@ -110,18 +110,7 @@ Bu test kod:
                 # Continue without telegram bot
                 telegram_bot = None
             
-            # Create executor with exchange_api from telegram_bot if available
-            exchange_api_instance = None
-            if telegram_bot and hasattr(telegram_bot, 'exchange_api'):
-                exchange_api_instance = telegram_bot.exchange_api
-                logger.info("Using exchange_api from telegram_bot")
-            
-            executor = simple_trade_executor.SimpleTradeExecutor(
-                config, 
-                db, 
-                exchange_api=exchange_api_instance,
-                telegram_bot=telegram_bot
-            )
+            executor = simple_trade_executor.SimpleTradeExecutor(config, db, telegram_bot=telegram_bot)
             
             # Check USDT balance
             usdt_balance = executor.get_balance("USDT")
@@ -252,14 +241,11 @@ Bu test kod:
             print(f"   ✅ Trade başarılı!")
             print(f"   💰 {test_signal['symbol']} satın alındı")
             
-            # Get initial position info
+            # Check active positions to see TP/SL status
             try:
                 active_positions = executor.get_active_positions()
                 if test_signal['symbol'] in active_positions:
                     position = active_positions[test_signal['symbol']]
-                    tp_order_id = position.get('tp_order_id')
-                    sl_order_id = position.get('sl_order_id')
-                    
                     print(f"   📊 POZİSYON DETAYLARI:")
                     print(f"      💱 Symbol: {position.get('symbol', 'N/A')}")
                     print(f"      💰 Entry Price: ${position.get('entry_price', 'N/A')}")
@@ -267,139 +253,28 @@ Bu test kod:
                     print(f"      🎯 Take Profit: ${position.get('take_profit', 'N/A')}")
                     print(f"      🛑 Stop Loss: ${position.get('stop_loss', 'N/A')}")
                     print(f"      🆔 Main Order: {position.get('main_order_id', 'N/A')}")
-                    print(f"      🟢 TP Order: {tp_order_id or 'None'}")
-                    print(f"      🔴 SL Order: {sl_order_id or 'None'}")
                     
-                    # 20 SANİYE İZLEME SİSTEMİ
-                    print(f"\n{'='*60}")
-                    print(f"⏰ 20 SANİYE POZİSYON İZLEME BAŞLIYOR...")
-                    print(f"{'='*60}")
-                    
-                    for i in range(1, 21):
-                        print(f"\n🕐 Saniye {i}/20:")
-                        time.sleep(1)
-                        
-                        # Mevcut fiyat
-                        try:
-                            current_price = executor.get_current_price(test_signal['symbol'])
-                            if current_price:
-                                print(f"   💲 Mevcut Fiyat: ${current_price:.6f}")
-                            else:
-                                print(f"   ⚠️ Fiyat alınamadı")
-                        except:
-                            print(f"   ⚠️ Fiyat hatası")
-                        
-                        # TP/SL Order Status Kontrolü
-                        if tp_order_id:
-                            try:
-                                tp_status = executor._get_order_status(tp_order_id)
-                                print(f"   🟢 TP Order Status: {tp_status or 'Unknown'}")
-                            except:
-                                print(f"   🟢 TP Order Status: Kontrol edilemedi")
-                        
-                        if sl_order_id:
-                            try:
-                                sl_status = executor._get_order_status(sl_order_id)
-                                print(f"   🔴 SL Order Status: {sl_status or 'Unknown'}")
-                            except:
-                                print(f"   🔴 SL Order Status: Kontrol edilemedi")
-                        
-                        # Memory pozisyon kontrolü
-                        current_positions = executor.get_active_positions()
-                        if test_signal['symbol'] in current_positions:
-                            pos_status = current_positions[test_signal['symbol']].get('status', 'UNKNOWN')
-                            print(f"   📊 Pozisyon Durumu: {pos_status}")
-                        else:
-                            print(f"   ⚠️ Pozisyon memory'de yok (kapanmış olabilir)")
-                            
-                            # Database'den kontrol et
-                            try:
-                                db_check = db.execute_query(
-                                    "SELECT status, notes FROM active_positions WHERE symbol = ? ORDER BY created_at DESC LIMIT 1",
-                                    (test_signal['symbol'],)
-                                )
-                                if db_check:
-                                    db_status = db_check[0][0] if len(db_check[0]) > 0 else 'UNKNOWN'
-                                    db_notes = db_check[0][1] if len(db_check[0]) > 1 else ''
-                                    print(f"   💾 Database Status: {db_status}")
-                                    if db_notes:
-                                        print(f"   📝 Notes: {db_notes}")
-                            except:
-                                pass
-                        
-                        # Coin balance kontrolü
-                        try:
-                            coin_symbol = test_signal['symbol'].split('_')[0]
-                            coin_balance = executor.get_balance(coin_symbol)
-                            print(f"   💰 {coin_symbol} Balance: {coin_balance}")
-                            
-                            if float(coin_balance) <= 0.0001:
-                                print(f"   ⚠️ UYARI: Coin satılmış görünüyor!")
-                        except:
-                            pass
-                    
-                    # 20 saniye sonunda final durum
-                    print(f"\n{'='*60}")
-                    print(f"🏁 20 SANİYE SONUNDA FİNAL DURUM")
-                    print(f"{'='*60}")
-                    
-                    # Final TP/SL Status
-                    if tp_order_id:
-                        try:
-                            final_tp_status = executor._get_order_status(tp_order_id)
-                            print(f"🟢 TP Order Final Status: {final_tp_status or 'Unknown'}")
-                        except:
-                            print(f"🟢 TP Order: Kontrol edilemedi")
-                    
-                    if sl_order_id:
-                        try:
-                            final_sl_status = executor._get_order_status(sl_order_id)
-                            print(f"🔴 SL Order Final Status: {final_sl_status or 'Unknown'}")
-                        except:
-                            print(f"🔴 SL Order: Kontrol edilemedi")
-                    
-                    # Final pozisyon durumu
-                    final_positions = executor.get_active_positions()
-                    if test_signal['symbol'] in final_positions:
-                        print(f"📊 Pozisyon: AKTİF (memory'de)")
-                        final_pos = final_positions[test_signal['symbol']]
-                        print(f"   Status: {final_pos.get('status', 'UNKNOWN')}")
-                    else:
-                        print(f"📊 Pozisyon: KAPALI veya memory'de yok")
-                    
-                    # Database final kontrolü
-                    try:
-                        final_db_check = db.execute_query(
-                            "SELECT status, notes, updated_at FROM active_positions WHERE symbol = ? ORDER BY updated_at DESC LIMIT 1",
-                            (test_signal['symbol'],)
-                        )
-                        if final_db_check:
-                            print(f"💾 Database Status: {final_db_check[0][0] if len(final_db_check[0]) > 0 else 'UNKNOWN'}")
-                            if len(final_db_check[0]) > 1 and final_db_check[0][1]:
-                                print(f"📝 Notes: {final_db_check[0][1]}")
-                    except Exception as db_err:
-                        print(f"💾 Database kontrolü başarısız: {db_err}")
-                    
-                    # Final coin balance
-                    try:
-                        coin_symbol = test_signal['symbol'].split('_')[0]
-                        final_balance = executor.get_balance(coin_symbol)
-                        print(f"💰 Final {coin_symbol} Balance: {final_balance}")
-                        
-                        if float(final_balance) <= 0.0001:
-                            print(f"✅ Coin başarıyla satıldı!")
-                        else:
-                            print(f"ℹ️  Coin hala bakiyede mevcut")
-                    except:
-                        pass
-                    
+                    # TP/SL Order Status
+                    tp_order = position.get('tp_order_id')
+                    sl_order = position.get('sl_order_id')
+                    print(f"      📋 TP/SL ORDER STATUS:")
+                    print(f"         🟢 TP Order: {'✅ Created' if tp_order else '❌ Failed'} (ID: {tp_order or 'None'})")
+                    print(f"         🔴 SL Order: {'✅ Created' if sl_order else '❌ Failed'} (ID: {sl_order or 'None'})")
                 else:
                     print(f"   ⚠️ Pozisyon aktif pozisyonlar listesinde bulunamadı")
                     
+                # Check database for saved position
+                db_positions = db.execute_query(
+                    "SELECT * FROM active_positions WHERE symbol = ? AND status = 'ACTIVE' ORDER BY created_at DESC LIMIT 1",
+                    (test_signal['symbol'],)
+                )
+                if db_positions:
+                    print(f"   💾 Pozisyon database'e kaydedildi ✅")
+                else:
+                    print(f"   💾 Pozisyon database'e kaydedilemedi ❌")
+                    
             except Exception as pos_error:
                 print(f"   ⚠️ Pozisyon detayları alınamadı: {pos_error}")
-                import traceback
-                traceback.print_exc()
                 
         else:
             print(f"   ❌ Trade başarısız!")
@@ -447,8 +322,59 @@ Bu test kod:
             print(f"   💡 Not: Sistem hem USDT hem USD kullanabilir")
         
         print(f"\n{'='*80}")
-        print(f"🏁 TEST TAMAMLANDI - 20 SANİYELİK İZLEME BİTTİ")
+        print(f"🏁 TEST TAMAMLANDI")
         print(f"{'='*80}")
+        
+        # 7. AKTİF POZİSYON KONTROLÜ - DETAYLI
+        print(f"\n{'='*60}")
+        print(f"📊 7. AKTİF POZİSYONLAR KONTROLÜ")
+        print(f"{'='*60}")
+        
+        try:
+            # Memory'deki aktif pozisyonlar
+            if 'executor' in locals():
+                memory_positions = executor.get_active_positions()
+                print(f"💾 Memory'deki aktif pozisyonlar: {len(memory_positions)}")
+                
+                for symbol, pos in memory_positions.items():
+                    print(f"   🔸 {symbol}:")
+                    print(f"      • Entry: ${pos.get('entry_price', 'N/A')}")
+                    print(f"      • Quantity: {pos.get('quantity', 'N/A')}")
+                    print(f"      • TP Order: {pos.get('tp_order_id', 'None')}")
+                    print(f"      • SL Order: {pos.get('sl_order_id', 'None')}")
+            
+            # Database'deki aktif pozisyonlar
+            db_positions = db.execute_query("SELECT * FROM active_positions WHERE status = 'ACTIVE'")
+            print(f"🗃️ Database'deki aktif pozisyonlar: {len(db_positions) if db_positions else 0}")
+            
+            if db_positions:
+                for pos in db_positions:
+                    symbol = pos[1] if len(pos) > 1 else "Unknown"  # symbol column
+                    print(f"   🔹 {symbol}:")
+                    entry_price = pos[4] if len(pos) > 4 else "N/A"  # entry_price column
+                    quantity = pos[5] if len(pos) > 5 else "N/A"     # quantity column  
+                    main_order = pos[8] if len(pos) > 8 else "None"  # order_id column
+                    tp_order = pos[9] if len(pos) > 9 else "None"    # tp_order_id column
+                    sl_order = pos[10] if len(pos) > 10 else "None"  # sl_order_id column
+                    print(f"      • Entry: ${entry_price}")
+                    print(f"      • Quantity: {quantity}")
+                    print(f"      • Main Order: {main_order}")
+                    print(f"      • TP Order: {tp_order}")
+                    print(f"      • SL Order: {sl_order}")
+            else:
+                print(f"   📭 Database'de aktif pozisyon bulunamadı")
+                
+        except Exception as pos_check_error:
+            print(f"❌ Pozisyon kontrolü hatası: {pos_check_error}")
+        
+        # Trade history kontrolü
+        try:
+            recent_trades = db.execute_query(
+                "SELECT * FROM trade_history WHERE timestamp >= datetime('now', '-1 hour') ORDER BY timestamp DESC LIMIT 5"
+            )
+            print(f"📈 Son 1 saat içindeki trade'ler: {len(recent_trades) if recent_trades else 0}")
+        except Exception as trade_check_error:
+            print(f"❌ Trade history kontrolü hatası: {trade_check_error}")
         
     except ImportError as e:
         print(f"❌ Import error: {e}")

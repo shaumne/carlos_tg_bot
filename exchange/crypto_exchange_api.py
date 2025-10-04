@@ -103,12 +103,6 @@ class CryptoExchangeAPI:
         
         # Trade amount from trading config
         self.trade_amount = self.trading_config.trade_amount
-        
-        # Instrument metadata cache - DYNAMIC SYSTEM
-        self._instrument_cache = {}
-        self._instrument_cache_time = 0
-        self._cache_ttl = 3600  # 1 hour cache
-        
         logger.info(f"CryptoExchangeAPI initialized - Trading: {self.trading_base_url}, Account: {self.account_base_url}, Trade Amount: {self.trade_amount}")
         
         # Test authentication
@@ -439,179 +433,54 @@ class CryptoExchangeAPI:
             logger.error(f"Error getting current price for {instrument_name}: {str(e)}")
             return None
     
-    def get_instruments_info(self) -> Dict[str, Any]:
-        """
-        Fetch instrument metadata from Crypto.com API
-        Returns cached data if fresh, otherwise fetches new data
-        """
-        try:
-            current_time = time.time()
-            
-            # Return cached data if still valid
-            if self._instrument_cache and (current_time - self._instrument_cache_time) < self._cache_ttl:
-                logger.debug("Using cached instrument data")
-                return self._instrument_cache
-            
-            # Fetch fresh data - public endpoint doesn't need authentication
-            logger.info("Fetching instrument metadata from Crypto.com API...")
-            
-            try:
-                # Use simple GET request for public endpoint (no signature needed)
-                url = f"{self.trading_base_url}public/get-instruments"
-                response = self.session.get(url, timeout=self.config.timeout)
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    
-                    logger.debug(f"API Response keys: {data.keys() if isinstance(data, dict) else 'Not a dict'}")
-                    
-                    if data.get("code") == 0 and "result" in data:
-                        result = data["result"]
-                        
-                        # Crypto.com API uses "data" field for instruments list
-                        instruments = None
-                        if "data" in result:
-                            instruments = result["data"]
-                        elif "instruments" in result:
-                            instruments = result["instruments"]
-                        elif isinstance(result, list):
-                            instruments = result
-                        else:
-                            logger.warning(f"Unknown result format. Keys: {result.keys() if isinstance(result, dict) else type(result)}")
-                            instruments = []
-                        
-                        if instruments and isinstance(instruments, list):
-                            # Build cache dictionary
-                            for instrument in instruments:
-                                if isinstance(instrument, dict):
-                                    # Crypto.com uses "symbol" field (not "instrument_name")
-                                    instrument_name = instrument.get("symbol", instrument.get("instrument_name", ""))
-                                    
-                                    # Only cache SPOT pairs (CCY_PAIR), not perpetuals
-                                    inst_type = instrument.get("inst_type", "")
-                                    
-                                    if instrument_name and inst_type == "CCY_PAIR":
-                                        self._instrument_cache[instrument_name] = {
-                                            "quantity_decimals": instrument.get("quantity_decimals", 2),
-                                            "price_decimals": instrument.get("quote_decimals", 2),  # Use quote_decimals for price
-                                            "min_quantity": instrument.get("qty_tick_size", "0.01"),  # Use qty_tick_size as min
-                                            "max_quantity": "1000000",  # Default max
-                                            "inst_type": inst_type,
-                                        }
-                            
-                            self._instrument_cache_time = current_time
-                            logger.info(f"✅ Cached metadata for {len(self._instrument_cache)} instruments")
-                            
-                            # Debug: Show a few examples
-                            if self._instrument_cache:
-                                sample_instruments = list(self._instrument_cache.keys())[:3]
-                                logger.debug(f"Sample instruments cached: {sample_instruments}")
-                            
-                            return self._instrument_cache
-                        else:
-                            logger.warning(f"No instruments found in result. Result structure: {type(result)}")
-                            return self._instrument_cache
-                    else:
-                        logger.warning(f"Invalid API response. Code: {data.get('code')}, Has result: {'result' in data}")
-                        logger.debug(f"Full response: {data}")
-                        return self._instrument_cache
-                else:
-                    logger.warning(f"HTTP error fetching instruments: {response.status_code}")
-                    logger.debug(f"Response text: {response.text[:500]}")
-                    return self._instrument_cache
-                    
-            except Exception as fetch_error:
-                logger.error(f"Error in HTTP request for instruments: {str(fetch_error)}")
-                import traceback
-                logger.debug(traceback.format_exc())
-                return self._instrument_cache
-                
-        except Exception as e:
-            logger.error(f"Error fetching instrument info: {str(e)}")
-            return self._instrument_cache  # Return old cache if any
-    
     def format_quantity(self, symbol: str, quantity: float) -> str:
-        """
-        DYNAMIC quantity formatting based on instrument metadata from API
-        Falls back to smart defaults if metadata unavailable
-        """
-        try:
-            # Get instrument metadata
-            instruments = self.get_instruments_info()
-            
-            # Try to find exact match
-            instrument_data = instruments.get(symbol)
-            
-            if instrument_data:
-                # Use API metadata for precision
-                decimals = int(instrument_data.get("quantity_decimals", 2))
-                min_qty = float(instrument_data.get("min_quantity", "0.01"))
-                
-                # Check minimum quantity
-                if quantity < min_qty:
-                    logger.warning(f"Quantity {quantity} below minimum {min_qty} for {symbol}")
-                    return str(min_qty)  # Return minimum instead of 0
-                
-                # Format with exact decimals from API
-                if decimals == 0:
-                    formatted = str(int(quantity))
-                else:
-                    # Use Decimal for precise rounding
-                    decimal_quantity = Decimal(str(quantity))
-                    rounded_quantity = decimal_quantity.quantize(
-                        Decimal('0.1') ** decimals,
-                        rounding=ROUND_HALF_UP
-                    )
-                    formatted = str(rounded_quantity)
-                
-                logger.info(f"Formatted quantity for {symbol}: {quantity} -> {formatted} (decimals: {decimals}, from API)")
-                return formatted
-            
-            # FALLBACK: Smart auto-detection if metadata unavailable
-            else:
-                logger.warning(f"No metadata for {symbol}, using smart fallback formatting")
-                
-                # Analyze the quantity value to determine best format
-                if quantity >= 1000:
-                    # Large quantities (meme coins) - likely integers
-                    formatted = str(int(quantity))
-                    decimals = 0
-                elif quantity >= 1:
-                    # Medium quantities - check if close to integer
-                    if abs(quantity - round(quantity)) < 0.01:
-                        # Very close to integer - use integer format
-                        formatted = str(int(round(quantity)))
-                        decimals = 0
-                    else:
-                        # Use 2 decimals
-                        decimal_quantity = Decimal(str(quantity))
-                        rounded = decimal_quantity.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-                        formatted = str(rounded).rstrip('0').rstrip('.')
-                        decimals = 2
-                elif quantity >= 0.01:
-                    # Small quantities - 4 decimals
-                    decimal_quantity = Decimal(str(quantity))
-                    rounded = decimal_quantity.quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)
-                    formatted = str(rounded).rstrip('0').rstrip('.')
-                    decimals = 4
-                else:
-                    # Very small quantities - 8 decimals
-                    decimal_quantity = Decimal(str(quantity))
-                    rounded = decimal_quantity.quantize(Decimal('0.00000001'), rounding=ROUND_HALF_UP)
-                    formatted = str(rounded).rstrip('0').rstrip('.')
-                    decimals = 8
-                
-                # Ensure no trailing decimal point
-                if formatted.endswith('.'):
-                    formatted = formatted[:-1]
-                
-                logger.info(f"Formatted quantity for {symbol}: {quantity} -> {formatted} (decimals: {decimals}, auto-detected)")
-                return formatted
-                
-        except Exception as e:
-            logger.error(f"Error formatting quantity for {symbol}: {str(e)}")
-            # Last resort: simple format
-            return "{:.2f}".format(quantity).rstrip('0').rstrip('.')
+        """Quantity formatını coin'e göre ayarla ve minimum quantity kontrolü yap"""
+        base_currency = symbol.split('_')[0] if '_' in symbol else symbol.replace('USDT', '').replace('/', '').strip()
+        
+        # Minimum quantity gereksinimleri (Crypto.com Exchange)
+        min_quantities = {
+            "BTC": 0.000001,   # 1e-6
+            "ETH": 0.00001,    # 1e-5  
+            "SUI": 0.01,       # 1e-2
+            "SOL": 0.001,      # 1e-3
+            "ADA": 0.1,        # 1e-1
+            "DOT": 0.01,       # 1e-2
+            "BONK": 1000,      # Whole numbers
+            "SHIB": 1000,      # Whole numbers 
+            "PEPE": 1000,      # Whole numbers
+        }
+        
+        # Check minimum quantity
+        min_qty = min_quantities.get(base_currency, 0.01)  # Default minimum
+        if quantity < min_qty:
+            logger.warning(f"Quantity {quantity} below minimum {min_qty} for {base_currency}")
+            return "0"  # Return invalid quantity
+        
+        # Decimal precision'ı coin'e göre ayarla
+        if base_currency in ["BTC", "ETH"]:
+            # High-value coins: 6 decimal places
+            decimal_places = 6
+        elif base_currency in ["SUI", "SOL", "ADA", "DOT"]:
+            # Medium-value coins: 2 decimal places
+            decimal_places = 2
+        elif base_currency in ["BONK", "SHIB", "PEPE"]:
+            # Meme coins: whole numbers
+            decimal_places = 0
+        else:
+            # Default: 2 decimal places
+            decimal_places = 2
+        
+        # Use Decimal for precise rounding
+        decimal_quantity = Decimal(str(quantity))
+        rounded_quantity = decimal_quantity.quantize(
+            Decimal('0.1') ** decimal_places, 
+            rounding=ROUND_HALF_UP
+        )
+        
+        formatted = str(rounded_quantity)
+        logger.info(f"Formatted quantity for {symbol}: {quantity} -> {formatted} (decimal_places: {decimal_places})")
+        
+        return formatted
     
     def create_buy_order(self, instrument_name: str, amount_usd: float) -> OrderResult:
         """Market buy order (USDT amount ile)"""

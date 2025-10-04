@@ -812,9 +812,7 @@ class SimpleTradeExecutor:
                     logger.error(f"❌ Failed to save position to database")
                 
                 # Start TP/SL monitoring if not already running
-                # This monitors TP/SL ORDER STATUS (not prices!) and cancels remaining order when one fills
                 self._start_tp_sl_monitoring()
-                logger.info(f"✅ TP/SL order status monitoring started for {symbol}")
             
             # Save to database with complete information
             trade_signal_with_details = trade_signal.copy()
@@ -1291,57 +1289,36 @@ class SimpleTradeExecutor:
             return None
     
     def _check_tp_sl_conditions(self, position: Dict[str, Any], current_price: float) -> tuple[bool, str]:
-        """
-        Check if TP or SL orders are filled on exchange
-        NOT checking prices - checking actual order status!
-        """
+        """Check if TP or SL conditions are met"""
         try:
-            tp_order_id = position.get('tp_order_id')
-            sl_order_id = position.get('sl_order_id')
             action = position['action']
             entry_price = float(position['entry_price'])
+            take_profit = float(position['take_profit'])
+            stop_loss = float(position['stop_loss'])
             
-            # If no TP/SL orders, return false
-            if not tp_order_id and not sl_order_id:
-                logger.debug(f"No TP/SL orders to monitor for {position['symbol']}")
-                return False, ""
+            if action == "BUY":
+                # BUY position: TP above entry, SL below entry
+                if current_price >= take_profit:
+                    profit_pct = ((current_price - entry_price) / entry_price) * 100
+                    return True, f"Take Profit hit (+{profit_pct:.2f}%)"
+                elif current_price <= stop_loss:
+                    loss_pct = ((entry_price - current_price) / entry_price) * 100
+                    return True, f"Stop Loss hit (-{loss_pct:.2f}%)"
             
-            # Check TP order status
-            if tp_order_id:
-                tp_status = self._get_order_status(tp_order_id)
-                if tp_status == "FILLED":
-                    profit_pct = ((current_price - entry_price) / entry_price) * 100 if action == "BUY" else ((entry_price - current_price) / entry_price) * 100
-                    logger.info(f"✅ TP order FILLED: {tp_order_id}")
-                    return True, f"Take Profit order filled (+{profit_pct:.2f}%)"
-            
-            # Check SL order status
-            if sl_order_id:
-                sl_status = self._get_order_status(sl_order_id)
-                if sl_status == "FILLED":
-                    loss_pct = ((entry_price - current_price) / entry_price) * 100 if action == "BUY" else ((current_price - entry_price) / entry_price) * 100
-                    logger.info(f"🛑 SL order FILLED: {sl_order_id}")
-                    return True, f"Stop Loss order filled (-{loss_pct:.2f}%)"
+            else:  # SELL position
+                # SELL position: TP below entry, SL above entry
+                if current_price <= take_profit:
+                    profit_pct = ((entry_price - current_price) / entry_price) * 100
+                    return True, f"Take Profit hit (+{profit_pct:.2f}%)"
+                elif current_price >= stop_loss:
+                    loss_pct = ((current_price - entry_price) / entry_price) * 100
+                    return True, f"Stop Loss hit (-{loss_pct:.2f}%)"
             
             return False, ""
             
         except Exception as e:
-            logger.error(f"Error checking TP/SL order status: {str(e)}")
+            logger.error(f"Error checking TP/SL conditions: {str(e)}")
             return False, ""
-    
-    def _get_order_status(self, order_id: str) -> Optional[str]:
-        """Get order status from exchange"""
-        try:
-            if not self.exchange_api:
-                return None
-            
-            order_info = self.exchange_api.get_order_details(order_id)
-            if order_info:
-                return order_info.status
-            return None
-            
-        except Exception as e:
-            logger.error(f"Error getting order status for {order_id}: {str(e)}")
-            return None
     
     def _close_position(self, position: Dict[str, Any], current_price: float, reason: str):
         """Close a position and cancel remaining TP/SL orders"""
@@ -1383,11 +1360,13 @@ class SimpleTradeExecutor:
                 else:
                     logger.warning(f"⚠️ Failed to cancel SL order: {sl_order_id}")
             
-            # ⚠️ NO MARKET SELL NEEDED!
-            # When TP or SL order is FILLED, exchange already executed the sell
-            # We just need to cancel the remaining order
-            logger.info(f"ℹ️  Position closed by exchange order execution")
-            logger.info(f"   No manual market sell needed - TP/SL order handled it")
+            # Execute market sell if needed (for BUY positions)
+            if action == "BUY" and float(quantity) > 0:
+                sell_order_id = self.sell_coin(symbol, quantity)
+                if sell_order_id:
+                    logger.info(f"✅ Market sell executed: {sell_order_id}")
+                else:
+                    logger.error(f"❌ Failed to execute market sell for {symbol}")
             
             # Save close trade to database
             close_trade_signal = {
