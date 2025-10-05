@@ -549,27 +549,22 @@ class SimpleTradeExecutor:
                 logger.error(f"Cannot get current price for {original_symbol}, skipping TP/SL orders")
                 return None, None
             
-            # Validate TP/SL prices against market price (min 0.5% difference)
-            min_tp_price = current_market_price * 1.005  # At least 0.5% above current
-            max_tp_price = current_market_price * 1.05   # At most 5% above current
-            min_sl_price = current_market_price * 0.95   # At least 5% below current  
-            max_sl_price = current_market_price * 0.995  # At most 0.5% below current
+            # 🔴 KRİTİK DÜZELTİLDİ: TP/SL fiyat validasyonu kaldırıldı
+            # Sorun: Fiyat validasyonu TP/SL'yi şu anki fiyata çok yakın yapıyordu
+            # Bu da hemen satışa neden oluyordu ve zarar oluşturuyordu
+            # ÇÖZüM: Orijinal TP/SL hesaplamalarını kullan, adjustment yapma!
             
-            # Adjust TP if too close or too far
-            if take_profit_price < min_tp_price:
-                take_profit_price = min_tp_price
-                logger.warning(f"Adjusted TP price to minimum allowed: {take_profit_price}")
-            elif take_profit_price > max_tp_price:
-                take_profit_price = max_tp_price
-                logger.warning(f"Adjusted TP price to maximum allowed range: {take_profit_price}")
+            # Sadece mantıksız değerleri logla (debug için)
+            if take_profit_price <= current_market_price:
+                logger.warning(f"⚠️ TP price ({take_profit_price}) is not above current price ({current_market_price})")
+            if stop_loss_price >= current_market_price:
+                logger.warning(f"⚠️ SL price ({stop_loss_price}) is not below current price ({current_market_price})")
             
-            # Adjust SL if too close or too far
-            if stop_loss_price > max_sl_price:
-                stop_loss_price = max_sl_price
-                logger.warning(f"Adjusted SL price to maximum allowed: {stop_loss_price}")
-            elif stop_loss_price < min_sl_price:
-                stop_loss_price = min_sl_price
-                logger.warning(f"Adjusted SL price to minimum allowed range: {stop_loss_price}")
+            # Orijinal TP/SL fiyatlarını kullan - ADJUSTMENT YAPMA!
+            logger.info(f"✅ Using original TP/SL prices (NO ADJUSTMENT)")
+            logger.info(f"   Entry price: {symbol} initial price from signal")
+            logger.info(f"   Current market price: {current_market_price}")
+            logger.info(f"   TP: {take_profit_price} | SL: {stop_loss_price}")
             
             # Try each format for TP/SL orders
             for format_attempt in possible_formats:
@@ -680,6 +675,26 @@ class SimpleTradeExecutor:
             if not self.config.trading.enable_auto_trading:
                 logger.info(f"Auto trading disabled, skipping {symbol} {action}")
                 return False
+            
+            # 🔴 KRİTİK KONTROL: SELL sinyali için açık pozisyon kontrolü
+            if action == "SELL":
+                has_open_position = self._check_active_position(symbol)
+                if not has_open_position:
+                    logger.warning(f"🚫 SELL işlemi engellendi: {symbol} için açık pozisyon YOK!")
+                    logger.warning(f"   Bu coin için satış yapabilmek için önce BUY pozisyonu olmalı")
+                    logger.warning(f"   Gereksiz işlem ücreti ve zarar önlendi!")
+                    return False
+                else:
+                    logger.info(f"✅ SELL işlemi onaylandı: {symbol} için açık pozisyon mevcut")
+            
+            # BUY sinyali için çift pozisyon kontrolü
+            if action == "BUY":
+                has_open_position = self._check_active_position(symbol)
+                if has_open_position:
+                    logger.warning(f"🚫 BUY işlemi engellendi: {symbol} için zaten açık pozisyon VAR!")
+                    logger.warning(f"   Aynı coin için birden fazla pozisyon açılamaz")
+                    logger.warning(f"   Gereksiz işlem ücreti önlendi!")
+                    return False
             
             # Save signal to database first
             self._save_signal_to_db(trade_signal, executed=True)
@@ -798,7 +813,8 @@ class SimpleTradeExecutor:
                     'tp_order_id': tp_order_id,
                     'sl_order_id': sl_order_id,
                     'timestamp': datetime.now(),
-                    'status': 'ACTIVE'
+                    'status': 'ACTIVE',
+                    'created_at': time.time()  # ✅ Pozisyon oluşturma zamanı (erken kapanma önleme için)
                 }
                 
                 self.active_positions[symbol] = position_data
@@ -1150,6 +1166,39 @@ class SimpleTradeExecutor:
         except Exception as e:
             logger.error(f"Error ensuring coin in watched_coins: {str(e)}")
     
+    def _check_active_position(self, symbol: str) -> bool:
+        """Bir coin için aktif pozisyon var mı kontrol et"""
+        try:
+            # 1. Memory'deki active_positions'dan kontrol et
+            if symbol in self.active_positions:
+                position = self.active_positions[symbol]
+                if position.get('status') == 'ACTIVE':
+                    logger.info(f"Açık pozisyon bulundu (memory): {symbol}")
+                    return True
+            
+            # 2. Veritabanından kontrol et
+            query = """
+                SELECT COUNT(*) as count 
+                FROM active_positions 
+                WHERE symbol = ? 
+                AND status = 'ACTIVE'
+            """
+            result = self.db.execute_query(query, (symbol,))
+            
+            if result and len(result) > 0:
+                count = result[0].get('count', 0)
+                if count > 0:
+                    logger.info(f"Açık pozisyon bulundu (database): {symbol} ({count} adet)")
+                    return True
+            
+            logger.debug(f"Açık pozisyon bulunamadı: {symbol}")
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error checking active position for {symbol}: {str(e)}")
+            # Güvenli taraf: hata durumunda False döndür
+            return False
+    
     def _save_signal_to_db(self, trade_signal: Dict[str, Any], executed: bool = False) -> Optional[int]:
         """Save signal to database"""
         try:
@@ -1291,6 +1340,16 @@ class SimpleTradeExecutor:
     def _check_tp_sl_conditions(self, position: Dict[str, Any], current_price: float) -> tuple[bool, str]:
         """Check if TP or SL conditions are met"""
         try:
+            # 🔴 KRİTİK KORUMA: Pozisyon yeni açıldıysa bekle (minimum 60 saniye)
+            created_at = position.get('created_at', 0)
+            position_age_seconds = time.time() - created_at
+            minimum_hold_time = 60  # En az 60 saniye bekle
+            
+            if position_age_seconds < minimum_hold_time:
+                remaining_seconds = minimum_hold_time - position_age_seconds
+                logger.debug(f"Position too new for {position['symbol']}, waiting {remaining_seconds:.0f}s more...")
+                return False, ""  # Henüz kontrol etme!
+            
             action = position['action']
             entry_price = float(position['entry_price'])
             take_profit = float(position['take_profit'])
@@ -1362,11 +1421,15 @@ class SimpleTradeExecutor:
             
             # Execute market sell if needed (for BUY positions)
             if action == "BUY" and float(quantity) > 0:
-                sell_order_id = self.sell_coin(symbol, quantity)
-                if sell_order_id:
-                    logger.info(f"✅ Market sell executed: {sell_order_id}")
+                # Son bir kontrol: Gerçekten açık pozisyon var mı?
+                if not self._check_active_position(symbol):
+                    logger.warning(f"⚠️ Position closing skipped for {symbol}: No active position found")
                 else:
-                    logger.error(f"❌ Failed to execute market sell for {symbol}")
+                    sell_order_id = self.sell_coin(symbol, quantity)
+                    if sell_order_id:
+                        logger.info(f"✅ Market sell executed: {sell_order_id}")
+                    else:
+                        logger.error(f"❌ Failed to execute market sell for {symbol}")
             
             # Save close trade to database
             close_trade_signal = {

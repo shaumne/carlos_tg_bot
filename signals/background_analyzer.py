@@ -422,6 +422,25 @@ class BackgroundAnalyzer:
                 logger.error(f"execute_trade function not found in trade_executor module")
                 return False
             
+            # 🔴 KRİTİK KONTROL: SELL sinyali için açık pozisyon kontrolü
+            if signal.signal_type == "SELL":
+                # Veritabanından açık pozisyonları kontrol et
+                has_open_position = self._check_open_position(signal.symbol)
+                if not has_open_position:
+                    logger.warning(f"🚫 SELL sinyali engellendi: {signal.symbol} için açık pozisyon YOK!")
+                    logger.warning(f"   SELL yapabilmek için önce BUY pozisyonu olmalı")
+                    return False
+                else:
+                    logger.info(f"✅ SELL sinyali onaylandı: {signal.symbol} için açık pozisyon var")
+            
+            # BUY sinyali için çift pozisyon kontrolü
+            if signal.signal_type == "BUY":
+                has_open_position = self._check_open_position(signal.symbol)
+                if has_open_position:
+                    logger.warning(f"🚫 BUY sinyali engellendi: {signal.symbol} için zaten açık pozisyon VAR!")
+                    logger.warning(f"   Aynı coin için birden fazla pozisyon açılamaz")
+                    return False
+            
             # Prepare trade signal data
             trade_data = {
                 'symbol': signal.symbol,
@@ -609,6 +628,31 @@ Please check the system logs for more details."""
             
         except Exception as e:
             logger.error(f"Error sending error notification: {str(e)}")
+    
+    def _check_open_position(self, symbol: str) -> bool:
+        """Bir coin için açık pozisyon var mı kontrol et"""
+        try:
+            # Veritabanından aktif pozisyonları kontrol et
+            query = """
+                SELECT COUNT(*) as count 
+                FROM active_positions 
+                WHERE symbol = ? 
+                AND status = 'ACTIVE'
+            """
+            result = self.db.execute_query(query, (symbol,))
+            
+            if result and len(result) > 0:
+                count = result[0].get('count', 0)
+                has_position = count > 0
+                logger.debug(f"Position check for {symbol}: {count} active positions found")
+                return has_position
+            
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error checking open position for {symbol}: {str(e)}")
+            # Güvenli taraf: hata durumunda False döndür (pozisyon yokmuş gibi davran)
+            return False
     
     def get_status(self) -> Dict:
         """Background analyzer durumunu döndür"""
