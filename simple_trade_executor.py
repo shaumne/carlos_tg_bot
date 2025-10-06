@@ -519,24 +519,30 @@ class SimpleTradeExecutor:
             
             base_currency = original_symbol.split('_')[0] if '_' in original_symbol else original_symbol.replace('USD', '').replace('USDT', '')
             
-            # Format quantity with buffer for SL orders (reduce by 0.1% to avoid balance issues)
-            available_quantity = float(quantity) * 0.999  # 0.1% buffer for fees/rounding
+            # 🔴 DİNAMİK QUANTITY HESAPLAMA - Exchange minimum gereksinimlerine göre
+            available_quantity = float(quantity)
             
-            # Exchange-specific quantity formatting
+            # Exchange-specific quantity formatting (dinamik model)
             if base_currency in ["SUI", "BONK", "SHIB", "DOGE", "PEPE"]:
+                # Bu coinler için tam sayı gerekli
                 formatted_quantity = str(int(available_quantity))
+                logger.info(f"📊 {base_currency} quantity (integer): {formatted_quantity}")
             elif base_currency in ["SOL"]:
-                # SOL requires specific decimal precision (3 decimal places)
+                # SOL için 3 ondalık basamak
                 formatted_quantity = "{:.3f}".format(available_quantity)
+                logger.info(f"📊 {base_currency} quantity (3 decimals): {formatted_quantity}")
             elif base_currency in ["ETH"]:
-                # ETH requires lower precision (4 decimal places max)
+                # ETH için 4 ondalık basamak
                 formatted_quantity = "{:.4f}".format(available_quantity).rstrip('0').rstrip('.')
+                logger.info(f"📊 {base_currency} quantity (4 decimals): {formatted_quantity}")
             elif base_currency in ["BTC"]:
-                # BTC requires higher precision (6+ decimal places)
+                # BTC için 6 ondalık basamak
                 formatted_quantity = "{:.6f}".format(available_quantity).rstrip('0').rstrip('.')
+                logger.info(f"📊 {base_currency} quantity (6 decimals): {formatted_quantity}")
             else:
-                # Default for other coins
+                # Diğer coinler için 4 ondalık
                 formatted_quantity = "{:.4f}".format(available_quantity).rstrip('0').rstrip('.')
+                logger.info(f"📊 {base_currency} quantity (default 4 decimals): {formatted_quantity}")
             
             logger.info(f"TP/SL orders: Original quantity: {quantity}, Adjusted quantity: {formatted_quantity}")
             
@@ -571,15 +577,24 @@ class SimpleTradeExecutor:
                 logger.info(f"Trying TP/SL with format: {format_attempt}")
                 logger.info(f"Current price: {current_market_price}, TP: {take_profit_price}, SL: {stop_loss_price}")
                 
-                # Take Profit Order - Clean price formatting
+                # 🔴 KRİTİK DÜZELTİLDİ: DOĞRU EMİR TİPLERİ KULLANILIYOR
+                # Crypto.com API dokümantasyonuna göre:
+                # TP için: TAKE_PROFIT_LIMIT (trigger + limit fiyatı)
+                # SL için: STOP_LIMIT (trigger + limit fiyatı)
+                
+                # Take Profit Order - TAKE_PROFIT_LIMIT tipi ile
                 clean_tp_price = "{:.2f}".format(float(take_profit_price))
                 tp_params = {
                     "instrument_name": format_attempt,
                     "side": "SELL",
-                    "type": "LIMIT",
-                    "price": clean_tp_price,
-                    "quantity": formatted_quantity
+                    "type": "TAKE_PROFIT_LIMIT",  # ✅ DOĞRU TİP
+                    "price": clean_tp_price,  # Limit fiyatı (gerçekleşme fiyatı)
+                    "ref_price": clean_tp_price,  # ✅ Trigger fiyatı (tetiklenme fiyatı)
+                    "quantity": formatted_quantity,
+                    "time_in_force": "GOOD_TILL_CANCEL"  # ✅ İptal edilene kadar geçerli
                 }
+                
+                logger.info(f"📋 TP Order: type=TAKE_PROFIT_LIMIT, price={clean_tp_price}, ref_price={clean_tp_price}, qty={formatted_quantity}")
             
                 tp_response = self.send_request("private/create-order", tp_params)
                 if tp_response and tp_response.get("code") == 0:
@@ -589,20 +604,25 @@ class SimpleTradeExecutor:
                     logger.warning(f"Format {format_attempt} not valid for TP order, trying next...")
                     continue
                 else:
-                    logger.error(f"❌ Failed to place TP order with {format_attempt}: {tp_response}")
+                    error_code = tp_response.get("code") if tp_response else "no_response"
+                    error_msg = tp_response.get("message", "Unknown error") if tp_response else "No response"
+                    logger.error(f"❌ Failed to place TP order with {format_attempt}: Code {error_code} - {error_msg}")
+                    logger.error(f"   Full response: {tp_response}")
                     continue
                 
-                # Stop Loss Order - Clean price formatting  
+                # Stop Loss Order - STOP_LIMIT tipi ile
                 clean_sl_price = "{:.2f}".format(float(stop_loss_price))
                 sl_params = {
                     "instrument_name": format_attempt,
                     "side": "SELL",
-                    "type": "LIMIT",  # Use LIMIT for now (more compatible)
-                    "price": clean_sl_price,
-                    "quantity": formatted_quantity
+                    "type": "STOP_LIMIT",  # ✅ DOĞRU TİP
+                    "price": clean_sl_price,  # Limit fiyatı (gerçekleşme fiyatı)
+                    "ref_price": clean_sl_price,  # ✅ Trigger fiyatı (tetiklenme fiyatı)
+                    "quantity": formatted_quantity,
+                    "time_in_force": "GOOD_TILL_CANCEL"  # ✅ İptal edilene kadar geçerli
                 }
                 
-                logger.info(f"SL Order params: {sl_params}")
+                logger.info(f"📋 SL Order: type=STOP_LIMIT, price={clean_sl_price}, ref_price={clean_sl_price}, qty={formatted_quantity}")
                 
                 # Check available balance before placing SL order
                 current_balance = self.get_balance(base_currency)
@@ -610,12 +630,18 @@ class SimpleTradeExecutor:
                 
                 if float(current_balance) < float(formatted_quantity):
                     logger.warning(f"❌ Insufficient {base_currency} balance for SL order: {current_balance} < {formatted_quantity}")
-                    # Try with smaller quantity
-                    reduced_quantity = float(formatted_quantity) * 0.95  # Reduce by 5%
+                    # Try with 95% of available balance
+                    reduced_quantity = float(current_balance) * 0.95
                     if base_currency in ["SUI", "BONK", "SHIB", "DOGE", "PEPE"]:
                         sl_params["quantity"] = str(int(reduced_quantity))
-                    else:
+                    elif base_currency in ["SOL"]:
+                        sl_params["quantity"] = "{:.3f}".format(reduced_quantity)
+                    elif base_currency in ["ETH"]:
+                        sl_params["quantity"] = "{:.4f}".format(reduced_quantity).rstrip('0').rstrip('.')
+                    elif base_currency in ["BTC"]:
                         sl_params["quantity"] = "{:.6f}".format(reduced_quantity).rstrip('0').rstrip('.')
+                    else:
+                        sl_params["quantity"] = "{:.4f}".format(reduced_quantity).rstrip('0').rstrip('.')
                     logger.info(f"Retrying SL with reduced quantity: {sl_params['quantity']}")
                 
                 sl_response = self.send_request("private/create-order", sl_params)
@@ -623,7 +649,10 @@ class SimpleTradeExecutor:
                     sl_order_id = sl_response["result"]["order_id"]
                     logger.info(f"✅ SL order placed with format {format_attempt}: {sl_order_id}")
                 else:
-                    logger.error(f"❌ Failed to place SL order with {format_attempt}: {sl_response}")
+                    error_code = sl_response.get("code") if sl_response else "no_response"
+                    error_msg = sl_response.get("message", "Unknown error") if sl_response else "No response"
+                    logger.error(f"❌ Failed to place SL order with {format_attempt}: Code {error_code} - {error_msg}")
+                    logger.error(f"   Full response: {sl_response}")
                     # If it's still a balance issue, skip remaining formats
                     if sl_response and sl_response.get("code") == 306:  # INSUFFICIENT_AVAILABLE_BALANCE
                         logger.error(f"Balance issue persists, skipping SL order creation")

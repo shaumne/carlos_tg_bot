@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-🧪 TEK ALIM SİNYALİ TEST KODU
-============================
-Bu kod bir tek alım sinyali gönderir ve trade executor'un tepkisini gösterir.
+🧪 TEK ALIM SİNYALİ TEST KODU - SOL
+====================================
+Bu kod SOL için bir tek alım sinyali gönderir ve trade executor'un tepkisini gösterir.
 Gerçek trade yapmama sebeplerini tespit eder.
 """
 
@@ -24,15 +24,18 @@ def main():
     
     print(f"""
 {'='*80}
-🧪 TEK ALIM SİNYALİ TEST KODU  
+🧪 SOL GERÇEK ALIM TESTİ - REAL MONEY 💰
 {'='*80}
 ⏰ Test Zamanı: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
-Bu test kod:
+⚠️  DİKKAT: BU TEST GERÇEK PARAYLA İŞLEM YAPAR!
+
+Bu test:
 ✅ Otomatik trading ayarlarını kontrol eder
-✅ Tek bir alım sinyali gönderir  
-✅ Trade executor'un tepkisini gösterir
-✅ Satın alıp almama sebeplerini açıklar
+✅ SOL için GERÇEK BUY emri verir (API ile)
+✅ Ayarlanan order amount kadar harcama yapar
+✅ TP/SL emirlerinin açılıp açılmadığını kontrol eder
+✅ Pozisyonun database'e kaydedilip kaydedilmediğini gösterir
 """)
     
     try:
@@ -149,62 +152,39 @@ Bu test kod:
             usd_balance = 0
             sufficient = False
         
-        # 4. TEST SİNYALİ OLUŞTUR - RANDOM COIN SEÇİMİ
+        # 4. TEST SİNYALİ OLUŞTUR - SOL COİNİ (SABİT)
         print(f"\n{'='*60}")
-        print(f"📡 4. TEST SİNYALİ OLUŞTURULUYOR - RANDOM COIN")
+        print(f"📡 4. TEST SİNYALİ OLUŞTURULUYOR - SOL COİNİ")
         print(f"{'='*60}")
         
-        # Database'den watched_coins listesini al
+        # 🔴 SABİT COİN: SOL
+        test_symbol = 'SOL'  # Sadece SOL kullan
+        
+        print(f"🎯 Test için seçilen coin: {test_symbol} (SABİT)")
+        
+        # SOL'un güncel fiyatını al
         try:
-            watched_coins_query = "SELECT symbol, formatted_symbol FROM watched_coins WHERE is_active = 1"
-            watched_coins = db.execute_query(watched_coins_query)
-            
-            if not watched_coins:
-                # Fallback: Default coin ekle
-                print(f"⚠️ Watchlist boş, default coin ekleniyor...")
-                default_coins = [
-                    ('SOL_USDT', 'SOL_USDT'),
-                    ('BTC_USDT', 'BTC_USDT'), 
-                    ('ETH_USDT', 'ETH_USDT'),
-                    ('ADA_USDT', 'ADA_USDT')
-                ]
-                
-                for symbol, formatted in default_coins:
-                    try:
-                        db.execute_update(
-                            "INSERT OR IGNORE INTO watched_coins (symbol, formatted_symbol, is_active, created_by) VALUES (?, ?, ?, ?)",
-                            (symbol, formatted, True, "test_script")
-                        )
-                    except:
-                        pass
-                
-                # Tekrar dene
-                watched_coins = db.execute_query(watched_coins_query)
-            
-            print(f"📊 Watchlist'te {len(watched_coins)} coin bulundu")
-            
-            # Random coin seç
-            import random
-            selected_coin = random.choice(watched_coins)
-            test_symbol = selected_coin[0]  # symbol column
-            
-            print(f"🎲 Random seçilen coin: {test_symbol}")
-            
-            # Get current price for the selected coin (fallback to 100 if can't get)
-            try:
-                current_price = executor.get_current_price(test_symbol)
-                if not current_price or current_price <= 0:
-                    current_price = 100.0  # Fallback price
-                print(f"💰 Mevcut fiyat: ${current_price}")
-            except:
-                current_price = 100.0
-                print(f"⚠️ Fiyat alınamadı, fallback kullanılıyor: ${current_price}")
-            
-        except Exception as e:
-            print(f"⚠️ Database'den coin seçimi başarısız: {e}")
-            test_symbol = 'SOL_USDT'  # Fallback
-            current_price = 200.0
-            print(f"🔄 Fallback coin kullanılıyor: {test_symbol}")
+            current_price = executor.get_current_price(test_symbol)
+            if not current_price or current_price <= 0:
+                # Fallback: Gerçekçi SOL fiyatı
+                current_price = 150.0
+                print(f"⚠️ SOL fiyatı alınamadı, fallback kullanılıyor: ${current_price}")
+            else:
+                print(f"💰 SOL mevcut fiyat: ${current_price}")
+        except Exception as price_error:
+            current_price = 150.0
+            print(f"⚠️ Fiyat alma hatası: {price_error}")
+            print(f"🔄 Fallback SOL fiyatı kullanılıyor: ${current_price}")
+        
+        # SOL'u watchlist'e ekle (yoksa)
+        try:
+            db.execute_update(
+                "INSERT OR IGNORE INTO watched_coins (symbol, formatted_symbol, is_active, created_by) VALUES (?, ?, ?, ?)",
+                (test_symbol, test_symbol, True, "test_script")
+            )
+            print(f"✅ SOL watchlist'e eklendi/kontrol edildi")
+        except Exception as db_error:
+            print(f"⚠️ Watchlist güncelleme uyarısı: {db_error}")
         
         test_signal = {
             'symbol': test_symbol,
@@ -215,7 +195,7 @@ Bu test kod:
             'row_index': 1,
             'take_profit': current_price * 1.1,  # %10 kar
             'stop_loss': current_price * 0.95,   # %5 zarar
-            'reasoning': f'TEST ALIM SİNYALİ - {test_symbol} için random test'
+            'reasoning': f'TEST ALIM SİNYALİ - SOL için manuel test'
         }
         
         print(f"🎯 Test Sinyali Hazırlandı:")
@@ -226,20 +206,24 @@ Bu test kod:
         print(f"   • Take Profit: ${test_signal['take_profit']}")
         print(f"   • Stop Loss: ${test_signal['stop_loss']}")
         
-        # 5. TRADE EXECUTION TEST
+        # 5. GERÇEK TRADE EXECUTION
         print(f"\n{'='*60}")
-        print(f"🚀 5. TRADE EXECUTION TEST")
+        print(f"🚀 5. GERÇEK TRADE EXECUTION (REAL MONEY)")
         print(f"{'='*60}")
         
-        print(f"🔄 Trade executor'a sinyal gönderiliyor...")
+        print(f"⚠️  DİKKAT: GERÇEK PARAYLA İŞLEM YAPILACAK!")
+        print(f"💰 Order Amount: ${config.trading.trade_amount}")
+        print(f"🪙 Coin: SOL")
+        print(f"🔄 Trade executor'a gerçek sinyal gönderiliyor...")
         
-        # Execute the trade using the same executor instance
+        # Execute the REAL trade using the same executor instance
         result = executor.execute_trade(test_signal)
         
-        print(f"\n📊 SONUÇ:")
+        print(f"\n📊 GERÇEK İŞLEM SONUCU:")
         if result:
-            print(f"   ✅ Trade başarılı!")
-            print(f"   💰 {test_signal['symbol']} satın alındı")
+            print(f"   ✅ GERÇEK TRADE BAŞARILI!")
+            print(f"   💰 {test_signal['symbol']} GERÇEK PARAYLA SATIN ALINDI!")
+            print(f"   💵 Harcanan: ${config.trading.trade_amount}")
             
             # Check active positions to see TP/SL status
             try:
