@@ -43,7 +43,7 @@ class SimpleTradeExecutor:
         self.account_base_url = "https://api.crypto.com/v2/"
         self.trade_amount = float(config_manager.trading.trade_amount)
         self.min_balance_required = self.trade_amount * 1.05  # 5% buffer for fees
-        self.trading_currency = "USDT"  # Default, may be changed to USD by get_balance
+        self.trading_currency = "USD"  # Default: USD (Crypto.com spot trading uses USD)
         
         if not self.api_key or not self.api_secret:
             logger.error("API key or secret not found in configuration")
@@ -209,32 +209,31 @@ class SimpleTradeExecutor:
                     usd_balance = available
                     logger.info(f"Found positive USD balance: {available}")
             
-            # Return currency balance if positive, otherwise use USD
-            if currency_balance > 0:
-                logger.info(f"Using {currency} balance: {currency_balance}")
-                return currency_balance
-            elif usd_balance > 0 and currency == "USDT":
-                logger.info(f"Using USD balance as USDT fallback: {usd_balance}")
-                # Set the currency to USD for future trading operations
+            # Return currency balance based on priority: USD > USDT
+            if usd_balance > 0:
+                logger.info(f"Using USD balance: {usd_balance}")
                 self.trading_currency = "USD"
                 return usd_balance
+            elif currency_balance > 0:
+                logger.info(f"Using {currency} balance: {currency_balance}")
+                return currency_balance
             else:
-                logger.warning(f"Currency {currency} not found in account")
+                logger.warning(f"No USD or {currency} balance found in account")
                 return 0
                 
         except Exception as e:
             logger.error(f"Error in get_balance: {str(e)}")
             return 0
     
-    def has_sufficient_balance(self, currency="USDT"):
-        """Check if there is sufficient balance for trading (following trade_executor.py approach)"""
+    def has_sufficient_balance(self, currency="USD"):
+        """Check if there is sufficient balance for trading (priority: USD > USDT)"""
         balance = self.get_balance(currency)
         sufficient = balance >= self.min_balance_required
         
         if sufficient:
-            logger.info(f"Sufficient balance: {balance} {currency}")
+            logger.info(f"Sufficient balance: {balance} {self.trading_currency}")
         else:
-            logger.warning(f"Insufficient balance: {balance} {currency}, minimum required: {self.min_balance_required}")
+            logger.warning(f"Insufficient balance: {balance} {self.trading_currency}, minimum required: {self.min_balance_required}")
             
         return sufficient
     
@@ -629,7 +628,11 @@ class SimpleTradeExecutor:
                 logger.info(f"Available {base_currency} balance: {current_balance}, Required: {formatted_quantity}")
                 
                 if float(current_balance) < float(formatted_quantity):
-                    logger.warning(f"❌ Insufficient {base_currency} balance for SL order: {current_balance} < {formatted_quantity}")
+                    # 🔴 DÜZELTİLDİ: Daha net log mesajları
+                    logger.warning(f"⚠️ Balance adjustment needed for SL order:")
+                    logger.warning(f"   Available: {current_balance} {base_currency}")
+                    logger.warning(f"   Requested: {formatted_quantity} {base_currency}")
+                    
                     # Try with 95% of available balance
                     reduced_quantity = float(current_balance) * 0.95
                     if base_currency in ["SUI", "BONK", "SHIB", "DOGE", "PEPE"]:
@@ -642,7 +645,9 @@ class SimpleTradeExecutor:
                         sl_params["quantity"] = "{:.6f}".format(reduced_quantity).rstrip('0').rstrip('.')
                     else:
                         sl_params["quantity"] = "{:.4f}".format(reduced_quantity).rstrip('0').rstrip('.')
-                    logger.info(f"Retrying SL with reduced quantity: {sl_params['quantity']}")
+                    
+                    logger.info(f"🔄 Using reduced quantity for SL: {sl_params['quantity']} {base_currency} (95% of balance)")
+                    logger.info(f"   This prevents 'Insufficient Balance' errors from exchange")
                 
                 sl_response = self.send_request("private/create-order", sl_params)
                 if sl_response and sl_response.get("code") == 0:
@@ -777,13 +782,31 @@ class SimpleTradeExecutor:
                 logger.error(f"❌ Failed to place {action} order for {symbol}")
                 return False
             
+            # 🔴 RELOAD SETTINGS FROM DATABASE - Get latest TP/SL percentages
+            # This ensures we use updated settings if user changed them in Telegram
+            tp_percentage = self.db.get_setting('trading.take_profit_percentage')
+            sl_percentage = self.db.get_setting('trading.stop_loss_percentage')
+            
+            # Use database values if available, otherwise fall back to config
+            if tp_percentage is not None:
+                tp_pct = float(tp_percentage)
+            else:
+                tp_pct = self.config.trading.take_profit_percentage
+            
+            if sl_percentage is not None:
+                sl_pct = float(sl_percentage)
+            else:
+                sl_pct = self.config.trading.stop_loss_percentage
+            
+            logger.info(f"📊 Using TP/SL percentages: TP={tp_pct}%, SL={sl_pct}%")
+            
             # Calculate TP/SL prices
             if action == "BUY":
-                take_profit_price = price * (1 + self.config.trading.take_profit_percentage / 100)
-                stop_loss_price = price * (1 - self.config.trading.stop_loss_percentage / 100)
+                take_profit_price = price * (1 + tp_pct / 100)
+                stop_loss_price = price * (1 - sl_pct / 100)
             else:  # SELL
-                take_profit_price = price * (1 - self.config.trading.take_profit_percentage / 100)
-                stop_loss_price = price * (1 + self.config.trading.stop_loss_percentage / 100)
+                take_profit_price = price * (1 - tp_pct / 100)
+                stop_loss_price = price * (1 + sl_pct / 100)
             
             logger.info(f"✅ {action} order placed: {order_id}")
             
@@ -906,22 +929,39 @@ class SimpleTradeExecutor:
             # Prepare notification message
             action = trade_data.get('action', trade_data.get('side', 'UNKNOWN'))
             symbol = trade_data.get('symbol', 'UNKNOWN')
-            price = trade_data.get('price', trade_data.get('actual_price', 0))
+            
+            # 🔴 SHOW ACTUAL EXECUTED VALUES
+            actual_price = trade_data.get('actual_price', 0)
+            signal_price = trade_data.get('price', 0)
+            actual_quantity = trade_data.get('actual_quantity', 0)
+            
+            # Use actual price if available, otherwise signal price
+            display_price = actual_price if actual_price > 0 else signal_price
+            
             confidence = trade_data.get('confidence', 0)
             take_profit = trade_data.get('take_profit', 0)
             stop_loss = trade_data.get('stop_loss', 0)
             reasoning = trade_data.get('reasoning', 'Direct trade execution')
-            actual_quantity = trade_data.get('actual_quantity', trade_data.get('amount', 0))
+            order_id = trade_data.get('order_id', 'N/A')
+            
+            # Calculate total cost
+            total_cost = display_price * actual_quantity if actual_quantity > 0 else 0
             
             if success:
                 message = f"""✅ <b>Trade Executed Successfully</b>
 
 💰 <b>{action} {symbol}</b>
-• Price: ${price:.4f}
-• Quantity: {actual_quantity}
+🆔 Order: {order_id}
+
+📊 <b>Execution Details:</b>
+• Bought: {actual_quantity} {symbol.replace('_USD', '').replace('_USDT', '')}
+• Price: ${display_price:.4f}
+• Total Cost: ${total_cost:.2f}
 • Confidence: {confidence:.1f}%
-• Take Profit: ${take_profit:.4f}
-• Stop Loss: ${stop_loss:.4f}
+
+🎯 <b>TP/SL Levels:</b>
+• Take Profit: ${take_profit:.4f} ({((take_profit/display_price - 1) * 100):.2f}%)
+• Stop Loss: ${stop_loss:.4f} ({((stop_loss/display_price - 1) * 100):.2f}%)
 
 📝 <b>Reasoning:</b>
 {reasoning}
@@ -931,7 +971,7 @@ class SimpleTradeExecutor:
                 message = f"""❌ <b>Trade Execution Failed</b>
 
 💰 <b>{action} {symbol}</b>
-• Price: ${price:.4f}
+• Price: ${display_price:.4f}
 • Confidence: {confidence:.1f}%
 
 📝 <b>Reasoning:</b>
@@ -1215,7 +1255,14 @@ class SimpleTradeExecutor:
             result = self.db.execute_query(query, (symbol,))
             
             if result and len(result) > 0:
-                count = result[0].get('count', 0)
+                # 🔴 DÜZELTİLDİ: sqlite3.Row objesi için dict veya index erişimi
+                row = result[0]
+                # Try dict-like access first, then index-based
+                try:
+                    count = row['count'] if hasattr(row, '__getitem__') else row[0]
+                except (KeyError, TypeError):
+                    count = row[0] if isinstance(row, (list, tuple)) else 0
+                
                 if count > 0:
                     logger.info(f"Açık pozisyon bulundu (database): {symbol} ({count} adet)")
                     return True
@@ -1225,6 +1272,8 @@ class SimpleTradeExecutor:
             
         except Exception as e:
             logger.error(f"Error checking active position for {symbol}: {str(e)}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             # Güvenli taraf: hata durumunda False döndür
             return False
     
@@ -1313,12 +1362,65 @@ class SimpleTradeExecutor:
                 
                 for symbol, position in self.active_positions.items():
                     try:
-                        # Get current price
+                        # 🔴 CRITICAL: First check if TP/SL orders were filled by exchange
+                        tp_order_id = position.get('tp_order_id')
+                        sl_order_id = position.get('sl_order_id')
+                        
+                        order_filled = False
+                        filled_order_type = None
+                        
+                        # Check TP order status
+                        if tp_order_id:
+                            tp_status = self.get_order_status(tp_order_id)
+                            if tp_status in ['FILLED', 'ACTIVE']:
+                                if tp_status == 'FILLED':
+                                    logger.info(f"🎯 TP order filled by exchange for {symbol}: {tp_order_id}")
+                                    order_filled = True
+                                    filled_order_type = 'TP'
+                                    # Cancel SL immediately
+                                    if sl_order_id:
+                                        if self.cancel_order(sl_order_id):
+                                            logger.info(f"✅ CRITICAL: Cancelled SL order after TP fill: {sl_order_id}")
+                                        else:
+                                            logger.error(f"❌ CRITICAL: Failed to cancel SL after TP fill: {sl_order_id}")
+                        
+                        # Check SL order status
+                        if sl_order_id and not order_filled:
+                            sl_status = self.get_order_status(sl_order_id)
+                            if sl_status in ['FILLED', 'ACTIVE']:
+                                if sl_status == 'FILLED':
+                                    logger.info(f"🛑 SL order filled by exchange for {symbol}: {sl_order_id}")
+                                    order_filled = True
+                                    filled_order_type = 'SL'
+                                    # Cancel TP immediately
+                                    if tp_order_id:
+                                        if self.cancel_order(tp_order_id):
+                                            logger.info(f"✅ CRITICAL: Cancelled TP order after SL fill: {tp_order_id}")
+                                        else:
+                                            logger.error(f"❌ CRITICAL: Failed to cancel TP after SL fill: {tp_order_id}")
+                        
+                        # If order was filled, mark position for removal
+                        if order_filled:
+                            logger.info(f"📊 Position closed by exchange {filled_order_type} for {symbol}")
+                            positions_to_remove.append(symbol)
+                            
+                            # Update database
+                            try:
+                                self.db.execute_update(
+                                    "UPDATE active_positions SET status = 'CLOSED' WHERE symbol = ? AND status = 'ACTIVE'",
+                                    (symbol,)
+                                )
+                            except Exception as db_error:
+                                logger.error(f"Failed to update DB for {symbol}: {db_error}")
+                            
+                            continue  # Skip price monitoring for this position
+                        
+                        # Get current price for manual monitoring
                         current_price = self._get_current_price(symbol)
                         if not current_price:
                             continue
                         
-                        # Check TP/SL conditions
+                        # Check TP/SL conditions (backup monitoring)
                         should_close, reason = self._check_tp_sl_conditions(position, current_price)
                         
                         if should_close:
@@ -1331,7 +1433,8 @@ class SimpleTradeExecutor:
                 
                 # Remove closed positions
                 for symbol in positions_to_remove:
-                    del self.active_positions[symbol]
+                    if symbol in self.active_positions:
+                        del self.active_positions[symbol]
                 
                 # Sleep between checks
                 time.sleep(self.tp_sl_check_interval)  # Check every 30 seconds

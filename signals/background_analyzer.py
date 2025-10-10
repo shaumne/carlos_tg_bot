@@ -642,7 +642,14 @@ Please check the system logs for more details."""
             result = self.db.execute_query(query, (symbol,))
             
             if result and len(result) > 0:
-                count = result[0].get('count', 0)
+                # 🔴 DÜZELTİLDİ: sqlite3.Row objesi için dict veya index erişimi
+                row = result[0]
+                # Try dict-like access first, then index-based
+                try:
+                    count = row['count'] if hasattr(row, '__getitem__') else row[0]
+                except (KeyError, TypeError):
+                    count = row[0] if isinstance(row, (list, tuple)) else 0
+                
                 has_position = count > 0
                 logger.debug(f"Position check for {symbol}: {count} active positions found")
                 return has_position
@@ -651,6 +658,8 @@ Please check the system logs for more details."""
             
         except Exception as e:
             logger.error(f"Error checking open position for {symbol}: {str(e)}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             # Güvenli taraf: hata durumunda False döndür (pozisyon yokmuş gibi davran)
             return False
     
