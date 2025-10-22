@@ -43,7 +43,7 @@ class SimpleTradeExecutor:
         self.account_base_url = "https://api.crypto.com/v2/"
         self.trade_amount = float(config_manager.trading.trade_amount)
         self.min_balance_required = self.trade_amount * 1.05  # 5% buffer for fees
-        self.trading_currency = "USDT"  # Default, may be changed to USD by get_balance
+        self.trading_currency = "USD"  # ALWAYS USE USD (not USDT)
         
         # Instrument precision cache
         self._instrument_precision_cache = {}  # {symbol: {'quantity_decimals': int, 'price_decimals': int}}
@@ -183,54 +183,43 @@ class SimpleTradeExecutor:
             logger.error(f"Error in get_account_summary: {str(e)}")
             return None
     
-    def get_balance(self, currency="USDT"):
-        """Get balance for a specific currency (following trade_executor.py approach)"""
+    def get_balance(self, currency="USD"):
+        """Get balance for a specific currency - ALWAYS USE USD (not USDT)"""
         try:
             account_summary = self.get_account_summary()
             if not account_summary or "accounts" not in account_summary:
                 logger.error("Failed to get account summary")
                 return 0
                 
-            # Look for both requested currency and USD
-            currency_balance = 0
+            # ALWAYS use USD (never USDT)
             usd_balance = 0
             
-            # Find the currency in accounts
+            # Find USD in accounts
             for account in account_summary["accounts"]:
                 account_currency = account.get("currency")
                 available = float(account.get("available", 0))
                 
-                # Check requested currency
-                if account_currency == currency:
-                    logger.debug(f"Available {currency} balance: {available}")
-                    if available > 0:
-                        currency_balance = available
-                        logger.info(f"Found positive {currency} balance: {available}")
-                
-                # Check USD as fallback (many exchanges use USD for spot trading)
-                elif account_currency == "USD" and available > 0:
+                # Only check USD
+                if account_currency == "USD" and available > 0:
                     usd_balance = available
-                    logger.info(f"Found positive USD balance: {available}")
+                    logger.info(f"Found USD balance: {available}")
+                    break
             
-            # Return currency balance if positive, otherwise use USD
-            if currency_balance > 0:
-                logger.info(f"Using {currency} balance: {currency_balance}")
-                return currency_balance
-            elif usd_balance > 0 and currency == "USDT":
-                logger.info(f"Using USD balance as USDT fallback: {usd_balance}")
-                # Set the currency to USD for future trading operations
+            if usd_balance > 0:
+                logger.info(f"Using USD balance: {usd_balance}")
+                # Always set trading currency to USD
                 self.trading_currency = "USD"
                 return usd_balance
             else:
-                logger.warning(f"Currency {currency} not found in account")
+                logger.warning(f"No USD balance found in account")
                 return 0
                 
         except Exception as e:
             logger.error(f"Error in get_balance: {str(e)}")
             return 0
     
-    def has_sufficient_balance(self, currency="USDT"):
-        """Check if there is sufficient balance for trading (following trade_executor.py approach)"""
+    def has_sufficient_balance(self, currency="USD"):
+        """Check if there is sufficient balance for trading - ALWAYS USE USD"""
         balance = self.get_balance(currency)
         sufficient = balance >= self.min_balance_required
         
@@ -503,12 +492,12 @@ class SimpleTradeExecutor:
             base_currency = symbol.split('_')[0] if '_' in symbol else symbol.replace('USD', '').replace('USDT', '')
             
             # Smart defaults based on common patterns
-            if base_currency in ["SUI", "BONK", "SHIB", "DOGE", "PEPE", "LDO", "XRP", "ADA", "TRX"]:
-                # These typically use integers or 0-2 decimals
+            if base_currency in ["SUI", "BONK", "SHIB", "DOGE", "PEPE", "LDO", "XRP", "ADA", "TRX", "DOT", "LINK", "UNI", "AAVE"]:
+                # These typically use integers or 0-2 decimals (most altcoins)
                 formatted = str(int(float(quantity)))
-            elif base_currency in ["SOL", "AVAX", "MATIC"]:
+            elif base_currency in ["SOL", "AVAX", "MATIC", "ATOM", "NEAR"]:
                 # 2-3 decimals
-                formatted = f"{float(quantity):.3f}".rstrip('0').rstrip('.')
+                formatted = f"{float(quantity):.2f}".rstrip('0').rstrip('.')
             elif base_currency in ["ETH", "BNB"]:
                 # 4 decimals
                 formatted = f"{float(quantity):.4f}".rstrip('0').rstrip('.')
@@ -516,8 +505,8 @@ class SimpleTradeExecutor:
                 # 6 decimals
                 formatted = f"{float(quantity):.6f}".rstrip('0').rstrip('.')
             else:
-                # Default: 4 decimals
-                formatted = f"{float(quantity):.4f}".rstrip('0').rstrip('.')
+                # Default: INTEGER (safest for most coins)
+                formatted = str(int(float(quantity)))
             
             logger.debug(f"Formatted quantity for {symbol} (fallback): {quantity} → {formatted}")
             return formatted
@@ -1034,26 +1023,36 @@ TP/SL orders have been placed automatically.
 Position is now being monitored 24/7.
 """
             
-            # Send notification asynchronously with proper event loop handling
-            def send_notification():
-                try:
-                    # Create new event loop for this thread
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                    try:
-                        loop.run_until_complete(self._send_telegram_message(message))
-                    finally:
-                        # Properly close the loop
-                        loop.run_until_complete(loop.shutdown_asyncgens())
-                        loop.close()
-                except Exception as e:
-                    logger.error(f"Error in detailed notification thread: {str(e)}")
-                    import traceback
-                    logger.debug(traceback.format_exc())
-            
-            # Run in separate thread
-            notification_thread = threading.Thread(target=send_notification, daemon=True)
-            notification_thread.start()
+            # Send notification WITHOUT async (use sync Telegram API)
+            try:
+                if self.telegram_bot and self.telegram_bot.application and self.telegram_bot.application.bot:
+                    import requests
+                    
+                    # Get bot token from telegram bot
+                    bot_token = self.config.telegram.bot_token
+                    signal_chat_ids = self.config.telegram.signal_chat_ids
+                    
+                    # Send via HTTP POST (synchronous)
+                    for chat_id in signal_chat_ids:
+                        try:
+                            url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+                            payload = {
+                                'chat_id': chat_id,
+                                'text': message,
+                                'parse_mode': 'HTML',
+                                'disable_web_page_preview': True
+                            }
+                            response = requests.post(url, json=payload, timeout=10)
+                            if response.status_code == 200:
+                                logger.info(f"✅ Detailed order notification sent to {chat_id}")
+                            else:
+                                logger.error(f"Failed to send notification: {response.status_code}")
+                        except Exception as e:
+                            logger.error(f"Error sending to {chat_id}: {str(e)}")
+                else:
+                    logger.debug("Telegram bot not available for notification")
+            except Exception as e:
+                logger.error(f"Error in detailed notification: {str(e)}")
             
             logger.info(f"📱 Detailed order notification sent for {instrument_name}")
             
@@ -1117,26 +1116,36 @@ Position is now being monitored 24/7.
 
 🕐 <b>Time:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
             
-            # Send notification asynchronously with proper event loop handling
-            def send_notification():
-                try:
-                    # Create new event loop for this thread
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                    try:
-                        loop.run_until_complete(self._send_telegram_message(message))
-                    finally:
-                        # Properly close the loop
-                        loop.run_until_complete(loop.shutdown_asyncgens())
-                        loop.close()
-                except Exception as e:
-                    logger.error(f"Error in notification thread: {str(e)}")
-                    import traceback
-                    logger.debug(traceback.format_exc())
-            
-            # Run in separate thread to avoid blocking
-            notification_thread = threading.Thread(target=send_notification, daemon=True)
-            notification_thread.start()
+            # Send notification WITHOUT async (use sync Telegram API)
+            try:
+                if self.telegram_bot and self.telegram_bot.application and self.telegram_bot.application.bot:
+                    import requests
+                    
+                    # Get bot token from telegram bot
+                    bot_token = self.config.telegram.bot_token
+                    signal_chat_ids = self.config.telegram.signal_chat_ids
+                    
+                    # Send via HTTP POST (synchronous)
+                    for chat_id in signal_chat_ids:
+                        try:
+                            url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+                            payload = {
+                                'chat_id': chat_id,
+                                'text': message,
+                                'parse_mode': 'HTML',
+                                'disable_web_page_preview': True
+                            }
+                            response = requests.post(url, json=payload, timeout=10)
+                            if response.status_code == 200:
+                                logger.info(f"✅ Trade notification sent to {chat_id}")
+                            else:
+                                logger.error(f"Failed to send trade notification: {response.status_code}")
+                        except Exception as e:
+                            logger.error(f"Error sending to {chat_id}: {str(e)}")
+                else:
+                    logger.debug("Telegram bot not available for trade notification")
+            except Exception as e:
+                logger.error(f"Error in trade notification: {str(e)}")
             
         except Exception as e:
             logger.error(f"Error preparing trade notification: {str(e)}")
@@ -1157,26 +1166,36 @@ Position is now being monitored 24/7.
 
 <i>Check logs for more details</i>"""
             
-            # Send notification asynchronously with proper event loop handling
-            def send_error():
-                try:
-                    # Create new event loop for this thread
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                    try:
-                        loop.run_until_complete(self._send_telegram_message(full_message))
-                    finally:
-                        # Properly close the loop
-                        loop.run_until_complete(loop.shutdown_asyncgens())
-                        loop.close()
-                except Exception as e:
-                    logger.error(f"Error in error notification thread: {str(e)}")
-                    import traceback
-                    logger.debug(traceback.format_exc())
-            
-            # Run in separate thread
-            error_thread = threading.Thread(target=send_error, daemon=True)
-            error_thread.start()
+            # Send notification WITHOUT async (use sync Telegram API)
+            try:
+                if self.telegram_bot and self.telegram_bot.application and self.telegram_bot.application.bot:
+                    import requests
+                    
+                    # Get bot token from telegram bot
+                    bot_token = self.config.telegram.bot_token
+                    signal_chat_ids = self.config.telegram.signal_chat_ids
+                    
+                    # Send via HTTP POST (synchronous)
+                    for chat_id in signal_chat_ids:
+                        try:
+                            url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+                            payload = {
+                                'chat_id': chat_id,
+                                'text': full_message,
+                                'parse_mode': 'HTML',
+                                'disable_web_page_preview': True
+                            }
+                            response = requests.post(url, json=payload, timeout=10)
+                            if response.status_code == 200:
+                                logger.info(f"✅ Error notification sent to {chat_id}")
+                            else:
+                                logger.error(f"Failed to send error notification: {response.status_code}")
+                        except Exception as e:
+                            logger.error(f"Error sending to {chat_id}: {str(e)}")
+                else:
+                    logger.debug("Telegram bot not available for error notification")
+            except Exception as e:
+                logger.error(f"Error in error notification: {str(e)}")
             
         except Exception as e:
             logger.error(f"Failed to send error to Telegram: {str(e)}")

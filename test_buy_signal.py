@@ -112,36 +112,24 @@ Bu test kod:
             
             executor = simple_trade_executor.SimpleTradeExecutor(config, db, telegram_bot=telegram_bot)
             
-            # Check USDT balance
-            usdt_balance = executor.get_balance("USDT")
-            print(f"   • USDT Balance: ${usdt_balance}")
-            
-            # Check USD balance 
+            # Check USD balance only (USDT is not used)
             usd_balance = executor.get_balance("USD")
             print(f"   • USD Balance: ${usd_balance}")
             
-            # Check which currency will be used
-            sufficient_usdt = executor.has_sufficient_balance("USDT")
-            sufficient_usd = executor.has_sufficient_balance("USD")
+            # Check if sufficient
+            sufficient = executor.has_sufficient_balance("USD")
             
             print(f"   • Minimum Required: ${executor.min_balance_required}")
-            print(f"   • USDT Sufficient: {'✅' if sufficient_usdt else '❌'}")
-            print(f"   • USD Sufficient: {'✅' if sufficient_usd else '❌'}")
+            print(f"   • USD Sufficient: {'✅' if sufficient else '❌'}")
             
-            # Determine which currency to use
-            if sufficient_usdt:
-                sufficient = True
-                print(f"   🎯 USDT kullanılacak")
-            elif sufficient_usd:
-                sufficient = True
-                print(f"   🎯 USD kullanılacak (USDT fallback)")
+            if sufficient:
+                print(f"   🎯 USD kullanılacak (ALWAYS)")
             else:
-                sufficient = False
-                print(f"   ❌ İkisi de yetersiz!")
+                print(f"   ❌ Yetersiz bakiye!")
             
             # Show executor's trading currency
             if hasattr(executor, 'trading_currency'):
-                print(f"   • Trading Currency: {executor.trading_currency}")
+                print(f"   • Trading Currency: {executor.trading_currency} (ALWAYS USD)")
             
         except Exception as e:
             print(f"   ❌ Balance kontrolü başarısız: {str(e)}")
@@ -290,7 +278,7 @@ Bu test kod:
             
             if not sufficient:
                 print(f"      • Yetersiz bakiye")
-                print(f"      • USDT: ${usdt_balance}, USD: ${usd_balance}")
+                print(f"      • USD: ${usd_balance}")
                 print(f"      • Gerekli: ${executor.min_balance_required}")
         
         # 6. AÇIKLAMALAR VE ÇÖZÜMLERİ
@@ -316,10 +304,10 @@ Bu test kod:
         if not sufficient and has_api_key and has_api_secret:
             print(f"💰 BAKİYE ARTTIRMAK İÇİN:")
             print(f"   1. Crypto.com uygulamasını açın")
-            print(f"   2. Exchange hesabınıza USDT veya USD yatırın")
+            print(f"   2. Exchange hesabınıza USD yatırın")
             print(f"   3. Minimum ${executor.min_balance_required} olması gerekli")
-            print(f"   4. Mevcut: USDT=${usdt_balance}, USD=${usd_balance}")
-            print(f"   💡 Not: Sistem hem USDT hem USD kullanabilir")
+            print(f"   4. Mevcut: USD=${usd_balance}")
+            print(f"   💡 Not: Sistem SADECE USD kullanır (USDT değil)")
         
         print(f"\n{'='*80}")
         print(f"🏁 TEST TAMAMLANDI")
