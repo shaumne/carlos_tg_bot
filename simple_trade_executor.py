@@ -45,6 +45,9 @@ class SimpleTradeExecutor:
         self.min_balance_required = self.trade_amount * 1.05  # 5% buffer for fees
         self.trading_currency = "USDT"  # Default, may be changed to USD by get_balance
         
+        # Instrument precision cache
+        self._instrument_precision_cache = {}  # {symbol: {'quantity_decimals': int, 'price_decimals': int}}
+        
         if not self.api_key or not self.api_secret:
             logger.error("API key or secret not found in configuration")
             raise ValueError("Exchange API credentials are required for real trading")
@@ -343,17 +346,8 @@ class SimpleTradeExecutor:
             
             logger.info(f"Creating market sell order: SELL {quantity} (trying {len(possible_formats)} formats)")
             
-            # Format quantity based on coin requirements (same as TP/SL formatting)
-            if base_currency in ["SUI", "BONK", "SHIB", "DOGE", "PEPE"]:
-                formatted_quantity = str(int(float(quantity)))
-            elif base_currency in ["SOL"]:
-                formatted_quantity = "{:.3f}".format(float(quantity))
-            elif base_currency in ["ETH"]:
-                formatted_quantity = "{:.4f}".format(float(quantity)).rstrip('0').rstrip('.')
-            elif base_currency in ["BTC"]:
-                formatted_quantity = "{:.6f}".format(float(quantity)).rstrip('0').rstrip('.')
-            else:
-                formatted_quantity = "{:.4f}".format(float(quantity)).rstrip('0').rstrip('.')
+            # Use dynamic quantity formatting
+            formatted_quantity = self._format_quantity(float(quantity), original_instrument)
             
             # Try each format until one works
             for format_attempt in possible_formats:
@@ -418,6 +412,119 @@ class SimpleTradeExecutor:
         except Exception as e:
             logger.error(f"Error in get_order_status: {str(e)}")
             return None
+    
+    def _get_instrument_precision(self, symbol: str) -> Optional[Dict[str, int]]:
+        """Get quantity and price precision from exchange for a symbol"""
+        try:
+            # Check cache first
+            if symbol in self._instrument_precision_cache:
+                return self._instrument_precision_cache[symbol]
+            
+            # Format symbol for API
+            if '_' not in symbol and '/' not in symbol:
+                formatted_symbol = f"{symbol}_USDT"
+            elif '/' in symbol:
+                formatted_symbol = symbol.replace('/', '_')
+            else:
+                formatted_symbol = symbol
+            
+            # Try different formats if using USD
+            possible_formats = [formatted_symbol]
+            if hasattr(self, 'trading_currency') and self.trading_currency == "USD":
+                base_currency = formatted_symbol.split("_")[0]
+                possible_formats = [
+                    f"{base_currency}_USD",
+                    f"{base_currency}USD",
+                    formatted_symbol
+                ]
+            
+            # Use public API to get instrument info
+            url = f"{self.account_base_url}public/get-instruments"
+            
+            for format_attempt in possible_formats:
+                try:
+                    response = requests.get(url, timeout=10)
+                    
+                    if response.status_code == 200:
+                        data = response.json()
+                        if data.get('code') == 0:
+                            instruments = data.get('result', {}).get('data', [])
+                            
+                            # Find matching instrument
+                            for instrument in instruments:
+                                if instrument.get('instrument_name') == format_attempt:
+                                    # Extract precision info
+                                    quantity_decimals = instrument.get('quantity_decimals', 0)
+                                    price_decimals = instrument.get('price_decimals', 2)
+                                    
+                                    precision_info = {
+                                        'quantity_decimals': quantity_decimals,
+                                        'price_decimals': price_decimals
+                                    }
+                                    
+                                    # Cache it
+                                    self._instrument_precision_cache[symbol] = precision_info
+                                    logger.info(f"📊 Precision for {symbol}: quantity={quantity_decimals}, price={price_decimals}")
+                                    
+                                    return precision_info
+                except Exception as e:
+                    logger.debug(f"Error getting instrument info for {format_attempt}: {str(e)}")
+                    continue
+            
+            logger.warning(f"Could not get precision info for {symbol}, using defaults")
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error in _get_instrument_precision: {str(e)}")
+            return None
+    
+    def _format_quantity(self, quantity: float, symbol: str) -> str:
+        """Format quantity according to exchange precision requirements"""
+        try:
+            # Get precision info from exchange
+            precision_info = self._get_instrument_precision(symbol)
+            
+            if precision_info:
+                decimals = precision_info['quantity_decimals']
+                
+                if decimals == 0:
+                    # Integer only
+                    formatted = str(int(float(quantity)))
+                else:
+                    # Format with specific decimals
+                    formatted = f"{float(quantity):.{decimals}f}"
+                    # Remove trailing zeros but keep at least the required decimals
+                    formatted = formatted.rstrip('0').rstrip('.')
+                
+                logger.debug(f"Formatted quantity for {symbol}: {quantity} → {formatted} (decimals: {decimals})")
+                return formatted
+            
+            # Fallback: Try multiple formats progressively
+            base_currency = symbol.split('_')[0] if '_' in symbol else symbol.replace('USD', '').replace('USDT', '')
+            
+            # Smart defaults based on common patterns
+            if base_currency in ["SUI", "BONK", "SHIB", "DOGE", "PEPE", "LDO", "XRP", "ADA", "TRX"]:
+                # These typically use integers or 0-2 decimals
+                formatted = str(int(float(quantity)))
+            elif base_currency in ["SOL", "AVAX", "MATIC"]:
+                # 2-3 decimals
+                formatted = f"{float(quantity):.3f}".rstrip('0').rstrip('.')
+            elif base_currency in ["ETH", "BNB"]:
+                # 4 decimals
+                formatted = f"{float(quantity):.4f}".rstrip('0').rstrip('.')
+            elif base_currency in ["BTC"]:
+                # 6 decimals
+                formatted = f"{float(quantity):.6f}".rstrip('0').rstrip('.')
+            else:
+                # Default: 4 decimals
+                formatted = f"{float(quantity):.4f}".rstrip('0').rstrip('.')
+            
+            logger.debug(f"Formatted quantity for {symbol} (fallback): {quantity} → {formatted}")
+            return formatted
+            
+        except Exception as e:
+            logger.error(f"Error formatting quantity: {str(e)}")
+            return str(int(float(quantity)))  # Ultimate fallback: integer
     
     def get_current_price(self, instrument_name):
         """Get current price for a symbol"""
@@ -517,26 +624,11 @@ class SimpleTradeExecutor:
             
             logger.info(f"Placing TP/SL orders for {original_symbol}: TP={take_profit_price}, SL={stop_loss_price}")
             
-            base_currency = original_symbol.split('_')[0] if '_' in original_symbol else original_symbol.replace('USD', '').replace('USDT', '')
-            
             # Format quantity with buffer for SL orders (reduce by 0.1% to avoid balance issues)
             available_quantity = float(quantity) * 0.999  # 0.1% buffer for fees/rounding
             
-            # Exchange-specific quantity formatting
-            if base_currency in ["SUI", "BONK", "SHIB", "DOGE", "PEPE"]:
-                formatted_quantity = str(int(available_quantity))
-            elif base_currency in ["SOL"]:
-                # SOL requires specific decimal precision (3 decimal places)
-                formatted_quantity = "{:.3f}".format(available_quantity)
-            elif base_currency in ["ETH"]:
-                # ETH requires lower precision (4 decimal places max)
-                formatted_quantity = "{:.4f}".format(available_quantity).rstrip('0').rstrip('.')
-            elif base_currency in ["BTC"]:
-                # BTC requires higher precision (6+ decimal places)
-                formatted_quantity = "{:.6f}".format(available_quantity).rstrip('0').rstrip('.')
-            else:
-                # Default for other coins
-                formatted_quantity = "{:.4f}".format(available_quantity).rstrip('0').rstrip('.')
+            # Use dynamic quantity formatting
+            formatted_quantity = self._format_quantity(available_quantity, original_symbol)
             
             logger.info(f"TP/SL orders: Original quantity: {quantity}, Adjusted quantity: {formatted_quantity}")
             
@@ -942,15 +1034,22 @@ TP/SL orders have been placed automatically.
 Position is now being monitored 24/7.
 """
             
-            # Send notification asynchronously
+            # Send notification asynchronously with proper event loop handling
             def send_notification():
                 try:
+                    # Create new event loop for this thread
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
-                    loop.run_until_complete(self._send_telegram_message(message))
-                    loop.close()
+                    try:
+                        loop.run_until_complete(self._send_telegram_message(message))
+                    finally:
+                        # Properly close the loop
+                        loop.run_until_complete(loop.shutdown_asyncgens())
+                        loop.close()
                 except Exception as e:
                     logger.error(f"Error in detailed notification thread: {str(e)}")
+                    import traceback
+                    logger.debug(traceback.format_exc())
             
             # Run in separate thread
             notification_thread = threading.Thread(target=send_notification, daemon=True)
@@ -1018,15 +1117,22 @@ Position is now being monitored 24/7.
 
 🕐 <b>Time:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
             
-            # Send notification asynchronously
+            # Send notification asynchronously with proper event loop handling
             def send_notification():
                 try:
+                    # Create new event loop for this thread
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
-                    loop.run_until_complete(self._send_telegram_message(message))
-                    loop.close()
+                    try:
+                        loop.run_until_complete(self._send_telegram_message(message))
+                    finally:
+                        # Properly close the loop
+                        loop.run_until_complete(loop.shutdown_asyncgens())
+                        loop.close()
                 except Exception as e:
                     logger.error(f"Error in notification thread: {str(e)}")
+                    import traceback
+                    logger.debug(traceback.format_exc())
             
             # Run in separate thread to avoid blocking
             notification_thread = threading.Thread(target=send_notification, daemon=True)
@@ -1051,15 +1157,22 @@ Position is now being monitored 24/7.
 
 <i>Check logs for more details</i>"""
             
-            # Send notification asynchronously
+            # Send notification asynchronously with proper event loop handling
             def send_error():
                 try:
+                    # Create new event loop for this thread
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
-                    loop.run_until_complete(self._send_telegram_message(full_message))
-                    loop.close()
+                    try:
+                        loop.run_until_complete(self._send_telegram_message(full_message))
+                    finally:
+                        # Properly close the loop
+                        loop.run_until_complete(loop.shutdown_asyncgens())
+                        loop.close()
                 except Exception as e:
                     logger.error(f"Error in error notification thread: {str(e)}")
+                    import traceback
+                    logger.debug(traceback.format_exc())
             
             # Run in separate thread
             error_thread = threading.Thread(target=send_error, daemon=True)
