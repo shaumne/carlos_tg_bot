@@ -405,7 +405,7 @@ class BackgroundAnalyzer:
             self._trade_executor_module = None
     
     async def _execute_trade(self, signal: TradingSignal):
-        """Execute trade based on signal"""
+        """Execute trade based on signal (async-safe)"""
         try:
             # Check if auto trading is enabled
             if not self.config.trading.enable_auto_trading:
@@ -435,9 +435,14 @@ class BackgroundAnalyzer:
                 'reasoning': '; '.join(signal.reasoning)
             }
             
-            # Execute the trade
+            # Execute the trade in a separate thread to avoid blocking event loop
             logger.info(f"🔄 Executing {signal.signal_type} trade for {signal.symbol} at ${signal.price}")
-            result = self._trade_executor_module.execute_trade(trade_data)
+            
+            # Use asyncio.to_thread to run synchronous execute_trade in thread pool
+            result = await asyncio.to_thread(
+                self._trade_executor_module.execute_trade,
+                trade_data
+            )
             
             if result:
                 logger.info(f"✅ Trade executed successfully: {signal.symbol} {signal.signal_type}")
@@ -454,6 +459,8 @@ class BackgroundAnalyzer:
                 
         except Exception as e:
             logger.error(f"❌ Error executing trade for {signal.symbol}: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
             return False
     
     async def _send_signal_notification(self, signal: TradingSignal, is_new_coin: bool = False):

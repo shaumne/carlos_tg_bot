@@ -433,8 +433,8 @@ class SignalEngine:
             closes = [float(candle[4]) for candle in ohlcv_data]
             volumes = [float(candle[5]) for candle in ohlcv_data]
             
-            # Calculate technical indicators
-            indicators = self._calculate_indicators(opens, highs, lows, closes, volumes)
+            # Calculate technical indicators (with symbol for volume tracking)
+            indicators = self._calculate_indicators(symbol, opens, highs, lows, closes, volumes)
             
             # Add current price to indicators
             indicators.current_price = market_data.price
@@ -478,17 +478,11 @@ class SignalEngine:
             closes = [float(candle[4]) for candle in ohlcv_data]
             volumes = [float(candle[5]) for candle in ohlcv_data]
             
-            # Update volume history before calculating indicators
+            # Teknik göstergeleri hesapla (volume history içinde güncellenecek)
+            indicators = self._calculate_indicators(symbol, opens, highs, lows, closes, volumes)
+            
+            # Update volume history for next calculation (after calculating ratio)
             current_volume = volumes[-1] if volumes else 0
-            self._update_volume_history(symbol, current_volume)
-            
-            # Teknik göstergeleri hesapla
-            indicators = self._calculate_indicators(opens, highs, lows, closes, volumes)
-            
-            # Fix volume ratio calculation with correct symbol
-            indicators.volume_ratio = self._calculate_volume_ratio(symbol, current_volume)
-            
-            # Update volume history for next calculation (YF.py style)
             self._update_volume_history(symbol, current_volume)
             
             # Sinyal üret
@@ -575,7 +569,7 @@ class SignalEngine:
             logger.error(f"Error calculating support/resistance: {str(e)}")
             return 0.0, 0.0
     
-    def _calculate_indicators(self, opens: List[float], highs: List[float], 
+    def _calculate_indicators(self, symbol: str, opens: List[float], highs: List[float], 
                             lows: List[float], closes: List[float], 
                             volumes: List[float]) -> TechnicalIndicators:
         """Tüm teknik göstergeleri hesapla"""
@@ -615,9 +609,9 @@ class SignalEngine:
             # Volume SMA
             indicators.volume_sma = self.analyzer.calculate_moving_average(volumes, 20)
             
-            # Volume ratio calculation
+            # Volume ratio calculation (now with correct symbol)
             current_volume = volumes[-1] if volumes else 0
-            indicators.volume_ratio = self._calculate_volume_ratio("", current_volume)  # Symbol will be passed from caller
+            indicators.volume_ratio = self._calculate_volume_ratio(symbol, current_volume)
             indicators.volume_average = indicators.volume_sma
             
             # Support/Resistance levels
@@ -657,33 +651,51 @@ class SignalEngine:
             if ema10_valid:
                 reasoning.append("Price above EMA10")
             
-            # YF.py EXACT BUY LOGIC
+            # IMPROVED BUY LOGIC - More balanced conditions
             buy_signal = False
             volume_ratio = indicators.volume_ratio or 1.0
             
-            # Condition 1: RSI < 30 and at least 1 MA condition (Oversold situation)
-            if (indicators.rsi is not None and indicators.rsi < 30 and valid_ma_count >= 1):
+            # Condition 1: RSI < 35 and at least 2 MA conditions (Strong oversold)
+            if (indicators.rsi is not None and indicators.rsi < 35 and valid_ma_count >= 2):
                 buy_signal = True
-                reasoning.append(f"YF.py Condition 1: RSI oversold ({indicators.rsi:.1f}) + {valid_ma_count} MA conditions")
-                confidence = 0.8
+                reasoning.append(f"Strong BUY: RSI oversold ({indicators.rsi:.1f}) + {valid_ma_count} MA conditions")
+                confidence = 0.85
             
-            # Condition 2: RSI < 40 and at least 1 MA condition and volume_ratio >= 1.5
-            elif (indicators.rsi is not None and indicators.rsi < 40 and 
-                  valid_ma_count >= 1 and volume_ratio >= 1.5):
+            # Condition 2: RSI < 40 and at least 1 MA condition (Moderate oversold)
+            elif (indicators.rsi is not None and indicators.rsi < 40 and valid_ma_count >= 1):
                 buy_signal = True
-                reasoning.append(f"YF.py Condition 2: RSI ({indicators.rsi:.1f}) + {valid_ma_count} MA + High volume ({volume_ratio:.2f}x)")
+                reasoning.append(f"Moderate BUY: RSI ({indicators.rsi:.1f}) + {valid_ma_count} MA conditions")
                 confidence = 0.75
             
-            # YF.py EXACT SELL LOGIC
+            # Condition 3: RSI 40-50 and all 3 MA conditions and high volume
+            elif (indicators.rsi is not None and 40 <= indicators.rsi <= 50 and 
+                  valid_ma_count == 3 and volume_ratio >= 1.5):
+                buy_signal = True
+                reasoning.append(f"Volume BUY: RSI ({indicators.rsi:.1f}) + All MA conditions + High volume ({volume_ratio:.2f}x)")
+                confidence = 0.70
+            
+            # IMPROVED SELL LOGIC - More balanced conditions
             sell_signal = False
             
-            # Sell signal: RSI > 70 and price breaks resistance (YF.py exact)
-            if (indicators.rsi is not None and indicators.rsi > 70 and
-                indicators.resistance_level is not None and 
-                current_price > indicators.resistance_level):
+            # Condition 1: RSI > 70 (Strong overbought)
+            if (indicators.rsi is not None and indicators.rsi > 70):
                 sell_signal = True
-                reasoning.append(f"YF.py SELL: RSI overbought ({indicators.rsi:.1f}) + price above resistance")
-                confidence = 0.8
+                reasoning.append(f"Strong SELL: RSI overbought ({indicators.rsi:.1f})")
+                confidence = 0.80
+            
+            # Condition 2: RSI > 65 and at least 1 MA condition violated (price below MA)
+            elif (indicators.rsi is not None and indicators.rsi > 65 and valid_ma_count < 2):
+                sell_signal = True
+                reasoning.append(f"Moderate SELL: RSI ({indicators.rsi:.1f}) + Price below MAs ({3 - valid_ma_count} violated)")
+                confidence = 0.70
+            
+            # Condition 3: RSI > 60 and price above resistance with high volume
+            elif (indicators.rsi is not None and indicators.rsi > 60 and
+                  indicators.resistance_level is not None and 
+                  current_price > indicators.resistance_level and volume_ratio >= 1.3):
+                sell_signal = True
+                reasoning.append(f"Resistance SELL: RSI ({indicators.rsi:.1f}) + Price above resistance + Volume ({volume_ratio:.2f}x)")
+                confidence = 0.75
             
             # YF.py EXACT ACTION DETERMINATION
             if buy_signal:

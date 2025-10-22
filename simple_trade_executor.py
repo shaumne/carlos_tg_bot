@@ -1221,9 +1221,110 @@ class SimpleTradeExecutor:
             self.monitoring_thread.join(timeout=5)
         logger.info("🛑 TP/SL monitoring stopped")
     
+    def _check_order_status_and_close_position(self, position: Dict[str, Any]) -> tuple[bool, str, str]:
+        """
+        Check TP/SL order status on exchange and close position if filled
+        Returns: (order_filled: bool, order_type: str, reason: str)
+        """
+        try:
+            symbol = position['symbol']
+            tp_order_id = position.get('tp_order_id')
+            sl_order_id = position.get('sl_order_id')
+            
+            # Check if we have order IDs
+            if not tp_order_id and not sl_order_id:
+                logger.debug(f"No TP/SL order IDs for {symbol}, skipping order status check")
+                return False, "", ""
+            
+            # Check TP order status
+            if tp_order_id:
+                try:
+                    tp_status = self.get_order_status(tp_order_id)
+                    
+                    if tp_status == "FILLED":
+                        logger.info(f"✅ TP order FILLED for {symbol}: {tp_order_id}")
+                        
+                        # Cancel SL order if it exists
+                        if sl_order_id:
+                            cancel_result = self.cancel_order(sl_order_id)
+                            if cancel_result:
+                                logger.info(f"✅ SL order cancelled: {sl_order_id}")
+                            else:
+                                logger.warning(f"⚠️ Failed to cancel SL order: {sl_order_id}")
+                        
+                        # Get order details for exit price
+                        order_details = self._get_order_details(tp_order_id)
+                        exit_price = float(order_details.get('avg_price', position.get('take_profit', 0))) if order_details else position.get('take_profit', 0)
+                        
+                        # Close the position in our tracking
+                        self._close_position(position, exit_price, "Take Profit order filled")
+                        
+                        # Update database
+                        self._update_position_in_db(symbol, 'CLOSED', exit_price, 'TP_FILLED')
+                        
+                        return True, "TP", f"Take Profit filled at ${exit_price}"
+                        
+                except Exception as e:
+                    logger.error(f"Error checking TP order status for {symbol}: {str(e)}")
+            
+            # Check SL order status
+            if sl_order_id:
+                try:
+                    sl_status = self.get_order_status(sl_order_id)
+                    
+                    if sl_status == "FILLED":
+                        logger.info(f"✅ SL order FILLED for {symbol}: {sl_order_id}")
+                        
+                        # Cancel TP order if it exists
+                        if tp_order_id:
+                            cancel_result = self.cancel_order(tp_order_id)
+                            if cancel_result:
+                                logger.info(f"✅ TP order cancelled: {tp_order_id}")
+                            else:
+                                logger.warning(f"⚠️ Failed to cancel TP order: {tp_order_id}")
+                        
+                        # Get order details for exit price
+                        order_details = self._get_order_details(sl_order_id)
+                        exit_price = float(order_details.get('avg_price', position.get('stop_loss', 0))) if order_details else position.get('stop_loss', 0)
+                        
+                        # Close the position in our tracking
+                        self._close_position(position, exit_price, "Stop Loss order filled")
+                        
+                        # Update database
+                        self._update_position_in_db(symbol, 'CLOSED', exit_price, 'SL_FILLED')
+                        
+                        return True, "SL", f"Stop Loss filled at ${exit_price}"
+                        
+                except Exception as e:
+                    logger.error(f"Error checking SL order status for {symbol}: {str(e)}")
+            
+            # No orders filled
+            return False, "", ""
+            
+        except Exception as e:
+            logger.error(f"Error in _check_order_status_and_close_position: {str(e)}")
+            return False, "", ""
+    
+    def _update_position_in_db(self, symbol: str, status: str, exit_price: float, close_reason: str):
+        """Update position status in database"""
+        try:
+            query = """
+                UPDATE active_positions 
+                SET status = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE symbol = ? AND status = 'ACTIVE'
+            """
+            
+            notes = f"Position closed: {close_reason} at ${exit_price}"
+            
+            self.db.execute_update(query, (status, notes, symbol))
+            logger.info(f"💾 Position {symbol} updated in database: {status}")
+            
+        except Exception as e:
+            logger.error(f"Error updating position in database: {str(e)}")
+    
     def _tp_sl_monitor_loop(self):
-        """Main TP/SL monitoring loop"""
-        logger.info("🔄 TP/SL monitoring loop started")
+        """Main TP/SL monitoring loop - Exchange order status based"""
+        logger.info("🔄 TP/SL monitoring loop started (exchange order tracking)")
         
         while self.monitoring_active:
             try:
@@ -1235,31 +1336,42 @@ class SimpleTradeExecutor:
                 
                 for symbol, position in self.active_positions.items():
                     try:
-                        # Get current price
-                        current_price = self._get_current_price(symbol)
-                        if not current_price:
+                        # First, check exchange order status (primary method)
+                        order_filled, filled_order_type, reason = self._check_order_status_and_close_position(position)
+                        
+                        if order_filled:
+                            # Order was filled on exchange - close position
+                            logger.info(f"🎯 {filled_order_type} order filled for {symbol}: {reason}")
+                            positions_to_remove.append(symbol)
                             continue
                         
-                        # Check TP/SL conditions
-                        should_close, reason = self._check_tp_sl_conditions(position, current_price)
-                        
-                        if should_close:
-                            # Close position
-                            self._close_position(position, current_price, reason)
-                            positions_to_remove.append(symbol)
+                        # Fallback: Price-based monitoring (if order status check fails)
+                        current_price = self._get_current_price(symbol)
+                        if current_price:
+                            should_close, price_reason = self._check_tp_sl_conditions(position, current_price)
+                            
+                            if should_close:
+                                # Close position based on price
+                                logger.info(f"💰 Price-based close triggered for {symbol}: {price_reason}")
+                                self._close_position(position, current_price, price_reason)
+                                positions_to_remove.append(symbol)
                         
                     except Exception as e:
                         logger.error(f"Error monitoring {symbol}: {str(e)}")
                 
                 # Remove closed positions
                 for symbol in positions_to_remove:
-                    del self.active_positions[symbol]
+                    if symbol in self.active_positions:
+                        del self.active_positions[symbol]
+                        logger.info(f"📊 Position {symbol} removed from active monitoring")
                 
                 # Sleep between checks
                 time.sleep(self.tp_sl_check_interval)  # Check every 30 seconds
                 
             except Exception as e:
                 logger.error(f"Error in TP/SL monitoring loop: {str(e)}")
+                import traceback
+                logger.error(traceback.format_exc())
                 time.sleep(60)  # Wait longer on error
         
         logger.info("🏁 TP/SL monitoring loop ended")
