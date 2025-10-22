@@ -2609,6 +2609,15 @@ History will appear here after you place trades.
             successful_deliveries = 0
             failed_deliveries = 0
             
+            # Debug log for signal chat IDs
+            logger.info(f"📋 Configured signal_chat_ids: {signal_chat_ids}")
+            logger.info(f"📋 Number of signal chats: {len(signal_chat_ids)}")
+            
+            if not signal_chat_ids or len(signal_chat_ids) == 0:
+                logger.error(f"❌ NO SIGNAL CHAT IDS CONFIGURED! Cannot send signals.")
+                logger.error(f"💡 Set TELEGRAM_SIGNAL_CHAT_IDS in .env file (comma-separated)")
+                return
+            
             logger.info(f"🚀 SENDING {action} SIGNAL for {symbol} to {len(signal_chat_ids)} chats...")
             
             for chat_id in signal_chat_ids:
@@ -2758,10 +2767,15 @@ History will appear here after you place trades.
                 logger.error("❌ Bot initialization failed")
                 return False
             
-            # Start polling
+            # Start polling with optimized parameters for faster response
             await self.application.initialize()
             await self.application.start()
-            await self.application.updater.start_polling()
+            await self.application.updater.start_polling(
+                poll_interval=0.1,  # Check for updates every 0.1 seconds (faster)
+                timeout=10,          # Timeout for long polling
+                drop_pending_updates=False,  # Process all pending updates
+                allowed_updates=Update.ALL_TYPES
+            )
             
             self.is_running = True
             logger.info("✅ Telegram Trading Bot started successfully!")

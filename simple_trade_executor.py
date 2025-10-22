@@ -713,7 +713,9 @@ class SimpleTradeExecutor:
             
             # Check sufficient balance
             if not self.has_sufficient_balance():
-                logger.error(f"❌ Insufficient USDT balance for ${amount} trade")
+                error_msg = f"❌ Insufficient USDT balance for ${amount} trade on {symbol}"
+                logger.error(error_msg)
+                self._send_error_to_telegram(f"⚠️ BALANCE ERROR\n\n{error_msg}")
                 return False
             
             # Execute the order based on action
@@ -730,7 +732,9 @@ class SimpleTradeExecutor:
                 order_id = self.sell_coin(symbol, balance)
             
             if not order_id:
-                logger.error(f"❌ Failed to place {action} order for {symbol}")
+                error_msg = f"❌ Failed to place {action} order for {symbol}"
+                logger.error(error_msg)
+                self._send_error_to_telegram(f"🚨 ORDER PLACEMENT FAILED\n\n{error_msg}\nSymbol: {symbol}\nAction: {action}\nPrice: ${price}")
                 return False
             
             # Calculate TP/SL prices
@@ -768,6 +772,9 @@ class SimpleTradeExecutor:
                 actual_price = float(order_details.get('avg_price', price))
                 actual_quantity = float(order_details.get('cumulative_quantity', 0))
                 logger.info(f"📊 Actual execution: {actual_quantity} at ${actual_price}")
+                
+                # Send detailed order notification to Telegram
+                self._send_detailed_order_notification(order_details, trade_signal, action)
             else:
                 actual_price = float(price)
                 actual_quantity = float(amount / price if action == "BUY" else amount)
@@ -833,11 +840,126 @@ class SimpleTradeExecutor:
             return True
             
         except Exception as e:
-            logger.error(f"❌ Error in real trade execution: {str(e)}")
+            error_msg = f"❌ Error in real trade execution: {str(e)}"
+            logger.error(error_msg)
+            
+            # Send detailed error to Telegram
+            import traceback
+            error_details = f"""🚨 TRADE EXECUTION ERROR
+
+Symbol: {trade_signal.get('symbol', 'UNKNOWN')}
+Action: {trade_signal.get('action', 'UNKNOWN')}
+Price: ${trade_signal.get('price', 0)}
+
+Error: {str(e)}
+
+Traceback:
+{traceback.format_exc()[:500]}"""
+            
+            self._send_error_to_telegram(error_details)
             
             # Send failure notification
             self._send_trade_notification_sync(trade_signal, success=False)
             return False
+    
+    def _send_detailed_order_notification(self, order_details: Dict[str, Any], trade_signal: Dict[str, Any], action: str):
+        """Send detailed order notification with full execution details"""
+        if not self.telegram_bot:
+            logger.debug("No Telegram bot available for detailed order notification")
+            return
+        
+        try:
+            import asyncio
+            import threading
+            
+            # Extract order details
+            order_id = order_details.get('order_id', 'N/A')
+            instrument_name = order_details.get('instrument_name', trade_signal.get('symbol', 'UNKNOWN'))
+            order_type = order_details.get('order_type', 'MARKET')
+            side = order_details.get('side', action)
+            status = order_details.get('status', 'UNKNOWN')
+            
+            quantity = order_details.get('quantity', '0')
+            cumulative_quantity = order_details.get('cumulative_quantity', '0')
+            avg_price = order_details.get('avg_price', '0')
+            order_value = order_details.get('order_value', '0')
+            
+            cumulative_value = order_details.get('cumulative_value', '0')
+            cumulative_fee = order_details.get('cumulative_fee', '0')
+            
+            maker_fee_rate = float(order_details.get('maker_fee_rate', 0)) * 100
+            taker_fee_rate = float(order_details.get('taker_fee_rate', 0)) * 100
+            
+            create_time = order_details.get('create_time', 0)
+            update_time = order_details.get('update_time', 0)
+            
+            # Format timestamps
+            from datetime import datetime
+            if create_time:
+                create_time_str = datetime.fromtimestamp(create_time / 1000).strftime('%Y-%m-%d %H:%M:%S')
+            else:
+                create_time_str = 'N/A'
+            
+            # Get TP/SL from trade signal
+            take_profit = trade_signal.get('take_profit', 0)
+            stop_loss = trade_signal.get('stop_loss', 0)
+            
+            # Status emoji
+            status_emoji = "✅" if status == "FILLED" else "⏳" if status == "ACTIVE" else "❌"
+            
+            # Create detailed message in English
+            message = f"""
+{status_emoji} <b>ORDER EXECUTED - DETAILED REPORT</b>
+
+<b>📊 ORDER INFORMATION</b>
+• Order ID: <code>{order_id}</code>
+• Instrument: <b>{instrument_name}</b>
+• Type: {order_type}
+• Side: <b>{side}</b>
+• Status: {status}
+
+<b>💰 EXECUTION DETAILS</b>
+• Ordered Quantity: {quantity}
+• Executed Quantity: <b>{cumulative_quantity}</b>
+• Average Price: <b>${avg_price}</b>
+• Total Value: <b>${cumulative_value}</b>
+• Order Value: ${order_value}
+
+<b>💸 FEES</b>
+• Total Fee Paid: <b>${cumulative_fee}</b>
+• Maker Fee Rate: {maker_fee_rate:.3f}%
+• Taker Fee Rate: {taker_fee_rate:.3f}%
+
+<b>🎯 TARGETS</b>
+• Take Profit: <b>${take_profit:.6f}</b>
+• Stop Loss: <b>${stop_loss:.6f}</b>
+
+<b>⏰ TIMESTAMPS</b>
+• Created: {create_time_str}
+
+<b>📝 NOTE</b>
+TP/SL orders have been placed automatically.
+Position is now being monitored 24/7.
+"""
+            
+            # Send notification asynchronously
+            def send_notification():
+                try:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    loop.run_until_complete(self._send_telegram_message(message))
+                    loop.close()
+                except Exception as e:
+                    logger.error(f"Error in detailed notification thread: {str(e)}")
+            
+            # Run in separate thread
+            notification_thread = threading.Thread(target=send_notification, daemon=True)
+            notification_thread.start()
+            
+            logger.info(f"📱 Detailed order notification sent for {instrument_name}")
+            
+        except Exception as e:
+            logger.error(f"Error sending detailed order notification: {str(e)}")
     
     def _send_trade_notification_sync(self, trade_data: Dict[str, Any], success: bool):
         """Send trade notification to Telegram (sync version)"""
@@ -913,6 +1035,39 @@ class SimpleTradeExecutor:
         except Exception as e:
             logger.error(f"Error preparing trade notification: {str(e)}")
     
+    def _send_error_to_telegram(self, error_message: str):
+        """Send error message to Telegram (sync version for use in exception handlers)"""
+        try:
+            import asyncio
+            import threading
+            
+            # Prepare error notification
+            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            full_message = f"""🚨 <b>TRADE EXECUTOR ERROR</b>
+
+⏰ <b>Time:</b> {timestamp}
+
+{error_message}
+
+<i>Check logs for more details</i>"""
+            
+            # Send notification asynchronously
+            def send_error():
+                try:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    loop.run_until_complete(self._send_telegram_message(full_message))
+                    loop.close()
+                except Exception as e:
+                    logger.error(f"Error in error notification thread: {str(e)}")
+            
+            # Run in separate thread
+            error_thread = threading.Thread(target=send_error, daemon=True)
+            error_thread.start()
+            
+        except Exception as e:
+            logger.error(f"Failed to send error to Telegram: {str(e)}")
+    
     async def _send_telegram_message(self, message: str):
         """Send message to Telegram chats"""
         try:
@@ -928,7 +1083,8 @@ class SimpleTradeExecutor:
                         await self.telegram_bot.application.bot.send_message(
                             chat_id=chat_id,
                             text=message,
-                            parse_mode='HTML'
+                            parse_mode='HTML',
+                            disable_web_page_preview=True
                         )
                         logger.info(f"✅ Message sent to Telegram chat {chat_id}")
                     except Exception as e:
@@ -1265,7 +1421,9 @@ class SimpleTradeExecutor:
                         return True, "TP", f"Take Profit filled at ${exit_price}"
                         
                 except Exception as e:
-                    logger.error(f"Error checking TP order status for {symbol}: {str(e)}")
+                    error_msg = f"Error checking TP order status for {symbol}: {str(e)}"
+                    logger.error(error_msg)
+                    self._send_error_to_telegram(f"⚠️ TP ORDER CHECK ERROR\n\nSymbol: {symbol}\nTP Order: {tp_order_id}\nError: {str(e)}")
             
             # Check SL order status
             if sl_order_id:
@@ -1296,7 +1454,9 @@ class SimpleTradeExecutor:
                         return True, "SL", f"Stop Loss filled at ${exit_price}"
                         
                 except Exception as e:
-                    logger.error(f"Error checking SL order status for {symbol}: {str(e)}")
+                    error_msg = f"Error checking SL order status for {symbol}: {str(e)}"
+                    logger.error(error_msg)
+                    self._send_error_to_telegram(f"⚠️ SL ORDER CHECK ERROR\n\nSymbol: {symbol}\nSL Order: {sl_order_id}\nError: {str(e)}")
             
             # No orders filled
             return False, "", ""

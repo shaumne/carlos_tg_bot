@@ -133,12 +133,27 @@ class BackgroundAnalyzer:
                 
             except Exception as e:
                 consecutive_errors += 1
-                logger.error(f"❌ Error in analysis cycle (#{consecutive_errors}): {str(e)}")
+                error_msg = f"❌ Error in analysis cycle (#{consecutive_errors}): {str(e)}"
+                logger.error(error_msg)
+                
+                # Send error to Telegram immediately
+                import traceback
+                error_details = f"""🔴 ANALYSIS CYCLE ERROR
+
+Error Count: {consecutive_errors}/{max_consecutive_errors}
+
+Error: {str(e)}
+
+Traceback:
+{traceback.format_exc()[:300]}"""
+                
+                await self._send_error_notification(error_details)
                 
                 # Çok fazla hata varsa sistem durdurmayı değerlendirin
                 if consecutive_errors >= max_consecutive_errors:
-                    logger.critical(f"🚨 Too many consecutive errors ({consecutive_errors}), stopping analyzer")
-                    await self._send_error_notification(f"Background analyzer stopped due to {consecutive_errors} consecutive errors")
+                    critical_msg = f"🚨 Too many consecutive errors ({consecutive_errors}), stopping analyzer"
+                    logger.critical(critical_msg)
+                    await self._send_error_notification(f"🚨 CRITICAL ERROR\n\n{critical_msg}\n\nBackground analyzer has been stopped!")
                     break
                 
                 # Hata durumunda biraz daha bekle
@@ -324,7 +339,14 @@ class BackgroundAnalyzer:
             return True
             
         except Exception as e:
-            logger.error(f"Error analyzing {symbol}: {str(e)}")
+            error_msg = f"Error analyzing {symbol}: {str(e)}"
+            logger.error(error_msg)
+            
+            # Send error notification if it's a repeated error (avoid spam)
+            if symbol not in self._failed_symbols:
+                # First time error - notify
+                await self._send_error_notification(f"⚠️ ANALYSIS ERROR\n\nSymbol: {symbol}\nError: {str(e)}")
+            
             return False
     
     def _can_send_signal(self, symbol: str, signal_type: str) -> bool:
@@ -458,9 +480,24 @@ class BackgroundAnalyzer:
                 return False
                 
         except Exception as e:
-            logger.error(f"❌ Error executing trade for {signal.symbol}: {str(e)}")
+            error_msg = f"❌ Error executing trade for {signal.symbol}: {str(e)}"
+            logger.error(error_msg)
             import traceback
             logger.error(traceback.format_exc())
+            
+            # Send error to Telegram
+            error_details = f"""🚨 TRADE EXECUTION ERROR (Background)
+
+Symbol: {signal.symbol}
+Action: {signal.signal_type}
+Price: ${signal.price}
+
+Error: {str(e)}
+
+Traceback:
+{traceback.format_exc()[:400]}"""
+            
+            await self._send_error_notification(error_details)
             return False
     
     async def _send_signal_notification(self, signal: TradingSignal, is_new_coin: bool = False):
@@ -603,19 +640,22 @@ Automatic signal monitoring has been stopped."""
             return False
 
     async def _send_error_notification(self, error_message: str):
-        """Hata bildirimi"""
+        """Hata bildirimi - Enhanced with better formatting"""
         try:
-            message = f"""🚨 <b>Background Analysis Error</b>
+            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            message = f"""🚨 <b>BACKGROUND ANALYZER ERROR</b>
 
-<b>Error:</b> {error_message}
-<b>Time:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+⏰ <b>Time:</b> {timestamp}
 
-Please check the system logs for more details."""
+{error_message}
+
+<i>⚠️ Check system logs for complete details</i>"""
             
             await self._send_to_signal_chats(message)
+            logger.info(f"📱 Error notification sent to Telegram")
             
         except Exception as e:
-            logger.error(f"Error sending error notification: {str(e)}")
+            logger.error(f"Failed to send error notification to Telegram: {str(e)}")
     
     def get_status(self) -> Dict:
         """Background analyzer durumunu döndür"""
