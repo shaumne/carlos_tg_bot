@@ -625,6 +625,70 @@ class SignalEngine:
             logger.error(f"Error calculating indicators: {str(e)}")
             return TechnicalIndicators()
     
+    def _has_recent_buy_signal(self, symbol: str, hours: int = 24) -> bool:
+        """
+        Check if there's a recent BUY signal for this symbol
+        Args:
+            symbol: Symbol to check
+            hours: Lookback period in hours (default 24)
+        Returns:
+            True if BUY signal exists in last N hours, False otherwise
+        """
+        try:
+            from datetime import datetime, timedelta, timezone
+            
+            # Get recent signals for this symbol (only BUY signals)
+            recent_signals = self.db.get_recent_signals(
+                symbol=symbol, 
+                signal_type='BUY',
+                limit=10  # Check last 10 BUY signals
+            )
+            
+            if not recent_signals:
+                return False
+            
+            # Calculate cutoff time
+            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
+            
+            # Check if any BUY signal is within the cooldown period
+            for signal in recent_signals:
+                try:
+                    # Parse timestamp (ISO format from database)
+                    signal_time_str = signal.get('timestamp', '')
+                    
+                    # Handle both string and datetime objects
+                    if isinstance(signal_time_str, str):
+                        # Try parsing ISO format with timezone
+                        if 'Z' in signal_time_str or '+' in signal_time_str:
+                            signal_time = datetime.fromisoformat(signal_time_str.replace('Z', '+00:00'))
+                        else:
+                            # No timezone info, assume UTC
+                            signal_time = datetime.fromisoformat(signal_time_str).replace(tzinfo=timezone.utc)
+                    else:
+                        signal_time = signal_time_str
+                    
+                    # Make cutoff_time naive if signal_time is naive
+                    if signal_time.tzinfo is None:
+                        cutoff_time_naive = cutoff_time.replace(tzinfo=None)
+                        if signal_time > cutoff_time_naive:
+                            logger.info(f"🚫 COOLDOWN ACTIVE for {symbol}: Last BUY signal {(datetime.now() - signal_time).total_seconds() / 3600:.1f}h ago")
+                            return True
+                    else:
+                        if signal_time > cutoff_time:
+                            logger.info(f"🚫 COOLDOWN ACTIVE for {symbol}: Last BUY signal {(datetime.now(timezone.utc) - signal_time).total_seconds() / 3600:.1f}h ago")
+                            return True
+                            
+                except Exception as e:
+                    logger.warning(f"Error parsing signal timestamp for {symbol}: {str(e)}")
+                    continue
+            
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error checking recent BUY signals for {symbol}: {str(e)}")
+            # On error, allow signal generation (fail-safe)
+            return False
+    
     def _generate_signal(self, symbol: str, market_data: MarketData, 
                         indicators: TechnicalIndicators) -> TradingSignal:
         """YF.py tarzı gelişmiş sinyal üretim sistemi"""
@@ -655,29 +719,44 @@ class SignalEngine:
             buy_signal = False
             volume_ratio = indicators.volume_ratio or 1.0
             
+            # 🔒 COOLDOWN CHECK: Block BUY signals if one was generated in last 24 hours
+            has_recent_buy = self._has_recent_buy_signal(symbol, hours=24)
+            
             # Condition 1: RSI < 30 (Very strong oversold - alone is enough)
             if (indicators.rsi is not None and indicators.rsi < 30):
-                buy_signal = True
-                reasoning.append(f"Strong BUY: RSI very oversold ({indicators.rsi:.1f})")
-                confidence = 0.85
+                if has_recent_buy:
+                    logger.info(f"⏸️ BUY signal blocked for {symbol} (24h cooldown): RSI={indicators.rsi:.1f}")
+                else:
+                    buy_signal = True
+                    reasoning.append(f"Strong BUY: RSI very oversold ({indicators.rsi:.1f})")
+                    confidence = 0.85
             
             # Condition 2: RSI < 40 (Moderate oversold - no MA required)
             elif (indicators.rsi is not None and indicators.rsi < 40):
-                buy_signal = True
-                reasoning.append(f"Moderate BUY: RSI oversold ({indicators.rsi:.1f})")
-                confidence = 0.75
+                if has_recent_buy:
+                    logger.info(f"⏸️ BUY signal blocked for {symbol} (24h cooldown): RSI={indicators.rsi:.1f}")
+                else:
+                    buy_signal = True
+                    reasoning.append(f"Moderate BUY: RSI oversold ({indicators.rsi:.1f})")
+                    confidence = 0.75
             
             # Condition 3: RSI < 50 and at least 2 MA conditions (Uptrend + not overbought)
             elif (indicators.rsi is not None and indicators.rsi < 50 and valid_ma_count >= 2):
-                buy_signal = True
-                reasoning.append(f"Uptrend BUY: RSI ({indicators.rsi:.1f}) + {valid_ma_count} MA uptrend")
-                confidence = 0.70
+                if has_recent_buy:
+                    logger.info(f"⏸️ BUY signal blocked for {symbol} (24h cooldown): RSI={indicators.rsi:.1f}, MA={valid_ma_count}")
+                else:
+                    buy_signal = True
+                    reasoning.append(f"Uptrend BUY: RSI ({indicators.rsi:.1f}) + {valid_ma_count} MA uptrend")
+                    confidence = 0.70
             
             # Condition 4: RSI 50-55 and all 3 MA conditions (Strong uptrend)
             elif (indicators.rsi is not None and 50 <= indicators.rsi <= 55 and valid_ma_count == 3):
-                buy_signal = True
-                reasoning.append(f"Strong Uptrend BUY: RSI ({indicators.rsi:.1f}) + All MA conditions")
-                confidence = 0.65
+                if has_recent_buy:
+                    logger.info(f"⏸️ BUY signal blocked for {symbol} (24h cooldown): RSI={indicators.rsi:.1f}, MA={valid_ma_count}")
+                else:
+                    buy_signal = True
+                    reasoning.append(f"Strong Uptrend BUY: RSI ({indicators.rsi:.1f}) + All MA conditions")
+                    confidence = 0.65
             
             # IMPROVED SELL LOGIC - More balanced conditions
             sell_signal = False
