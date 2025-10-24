@@ -651,28 +651,33 @@ class SignalEngine:
             if ema10_valid:
                 reasoning.append("Price above EMA10")
             
-            # IMPROVED BUY LOGIC - More balanced conditions
+            # BALANCED BUY LOGIC - More opportunities
             buy_signal = False
             volume_ratio = indicators.volume_ratio or 1.0
             
-            # Condition 1: RSI < 35 and at least 2 MA conditions (Strong oversold)
-            if (indicators.rsi is not None and indicators.rsi < 35 and valid_ma_count >= 2):
+            # Condition 1: RSI < 30 (Very strong oversold - alone is enough)
+            if (indicators.rsi is not None and indicators.rsi < 30):
                 buy_signal = True
-                reasoning.append(f"Strong BUY: RSI oversold ({indicators.rsi:.1f}) + {valid_ma_count} MA conditions")
+                reasoning.append(f"Strong BUY: RSI very oversold ({indicators.rsi:.1f})")
                 confidence = 0.85
             
-            # Condition 2: RSI < 40 and at least 1 MA condition (Moderate oversold)
-            elif (indicators.rsi is not None and indicators.rsi < 40 and valid_ma_count >= 1):
+            # Condition 2: RSI < 40 (Moderate oversold - no MA required)
+            elif (indicators.rsi is not None and indicators.rsi < 40):
                 buy_signal = True
-                reasoning.append(f"Moderate BUY: RSI ({indicators.rsi:.1f}) + {valid_ma_count} MA conditions")
+                reasoning.append(f"Moderate BUY: RSI oversold ({indicators.rsi:.1f})")
                 confidence = 0.75
             
-            # Condition 3: RSI 40-50 and all 3 MA conditions and high volume
-            elif (indicators.rsi is not None and 40 <= indicators.rsi <= 50 and 
-                  valid_ma_count == 3 and volume_ratio >= 1.5):
+            # Condition 3: RSI < 50 and at least 2 MA conditions (Uptrend + not overbought)
+            elif (indicators.rsi is not None and indicators.rsi < 50 and valid_ma_count >= 2):
                 buy_signal = True
-                reasoning.append(f"Volume BUY: RSI ({indicators.rsi:.1f}) + All MA conditions + High volume ({volume_ratio:.2f}x)")
+                reasoning.append(f"Uptrend BUY: RSI ({indicators.rsi:.1f}) + {valid_ma_count} MA uptrend")
                 confidence = 0.70
+            
+            # Condition 4: RSI 50-55 and all 3 MA conditions (Strong uptrend)
+            elif (indicators.rsi is not None and 50 <= indicators.rsi <= 55 and valid_ma_count == 3):
+                buy_signal = True
+                reasoning.append(f"Strong Uptrend BUY: RSI ({indicators.rsi:.1f}) + All MA conditions")
+                confidence = 0.65
             
             # IMPROVED SELL LOGIC - More balanced conditions
             sell_signal = False
