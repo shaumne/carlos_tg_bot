@@ -2604,23 +2604,40 @@ History will appear here after you place trades.
 ⏰ {datetime.now().strftime('%H:%M:%S')}
             """
             
-            # GUARANTEED DELIVERY SYSTEM - Send to signal chats
+            # GUARANTEED DELIVERY SYSTEM - Send to signal chats AND authorized users
             signal_chat_ids = self.config.telegram.signal_chat_ids
+            authorized_users = self.config.telegram.authorized_users  # From .env
+            
+            # Combine: group chats + authorized users' private chats
+            all_recipients = []
+            
+            # Add signal chat IDs (groups/channels)
+            if signal_chat_ids:
+                all_recipients.extend([str(chat_id) for chat_id in signal_chat_ids])
+            
+            # Add authorized users' private chats
+            if authorized_users:
+                all_recipients.extend([str(user_id) for user_id in authorized_users])
+            
+            # Remove duplicates
+            all_recipients = list(set(all_recipients))
+            
             successful_deliveries = 0
             failed_deliveries = 0
             
-            # Debug log for signal chat IDs
-            logger.info(f"📋 Configured signal_chat_ids: {signal_chat_ids}")
-            logger.info(f"📋 Number of signal chats: {len(signal_chat_ids)}")
+            # Debug log
+            logger.info(f"📋 Signal chat IDs: {len(signal_chat_ids) if signal_chat_ids else 0}")
+            logger.info(f"📋 Authorized users: {len(authorized_users) if authorized_users else 0}")
+            logger.info(f"📋 Total recipients: {len(all_recipients)}")
             
-            if not signal_chat_ids or len(signal_chat_ids) == 0:
-                logger.error(f"❌ NO SIGNAL CHAT IDS CONFIGURED! Cannot send signals.")
-                logger.error(f"💡 Set TELEGRAM_SIGNAL_CHAT_IDS in .env file (comma-separated)")
+            if not all_recipients or len(all_recipients) == 0:
+                logger.error(f"❌ NO RECIPIENTS CONFIGURED! Cannot send signals.")
+                logger.error(f"💡 Set TELEGRAM_SIGNAL_CHAT_IDS or TELEGRAM_AUTHORIZED_USERS in .env")
                 return
             
-            logger.info(f"🚀 SENDING {action} SIGNAL for {symbol} to {len(signal_chat_ids)} chats...")
+            logger.info(f"🚀 SENDING {action} SIGNAL for {symbol} to {len(all_recipients)} recipients...")
             
-            for chat_id in signal_chat_ids:
+            for chat_id in all_recipients:
                 delivery_success = False
                 
                 # Try multiple delivery methods
@@ -2673,7 +2690,7 @@ History will appear here after you place trades.
                         pass
             
             # Final delivery report
-            logger.info(f"📊 SIGNAL DELIVERY REPORT: {successful_deliveries}/{len(signal_chat_ids)} successful, {failed_deliveries} failed")
+            logger.info(f"📊 SIGNAL DELIVERY REPORT: {successful_deliveries}/{len(all_recipients)} successful, {failed_deliveries} failed")
             
             # Critical alert if no deliveries succeeded
             if successful_deliveries == 0:
